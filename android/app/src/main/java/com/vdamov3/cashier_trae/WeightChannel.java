@@ -6,13 +6,16 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.weight.serialport.SerialListener;
-import com.weight.serialport.SerialManager;
+import com.weight.serialport.SerialPort;
 import com.weight.serialport.SerialPortConfig;
-import com.weight.serialport.sdk.data.WeightBean;
+import com.weight.serialport.SerialPortDevices;
 import com.weight.serialport.sdk.until.SerialMessageUtil;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,31 +24,24 @@ import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 
-/**
- * 称重通道 — 通过 serialport AAR 读取串口称重数据，经 EventChannel 推送到 Flutter。
- * 协议：16字节定长帧
- *   [0]  0x01 SOH
- *   [1]  0x02 STX
- *   [2]  状态字符: 'S'=稳定 'U'=不稳定 'F'=溢出/未归零
- *   [3]  符号: '+'或'-'
- *   [4~9]  重量ASCII字符串，6位，如"00.260"（单位kg）
- *   [10~11] 单位"kg"
- *   [12]   BCC校验
- *   [13]  0x03 ETX
- *   [14]  0x04 EOT
- *   [15]  状态2: Bit4=零点 Bit5=去皮模式 Bit6=溢出
- */
-public class WeightChannel implements MethodChannel.MethodCallHandler,
-        EventChannel.StreamHandler, SerialListener {
+public class WeightChannel implements MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
     private static final String TAG = "WeightChannel";
-    private EventChannel.EventSink eventSink;
+    private static final String PATCH_VER = "WCH_PATCH_20260303_C_RAW";
+    private static final int FRAME_LEN = 16;
+    private static final int MAX_BUFFER_BYTES = 4096;
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private EventChannel.EventSink eventSink;
 
-    // 字节缓冲区，处理串口拆包
     private final ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
+    private SerialPort serialPort;
+    private InputStream inputStream;
+    private OutputStream outputStream;
+    private Thread readThread;
+    private volatile boolean reading = false;
+    private long frameCount = 0;
 
-    // ── MethodChannel ────────────────────────────────────────
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
         switch (call.method) {
@@ -54,51 +50,28 @@ public class WeightChannel implements MethodChannel.MethodCallHandler,
                 Integer rate = call.argument("rate");
                 if (path == null) path = "/dev/ttyS4";
                 if (rate == null) rate = 9600;
-
-                Log.d(TAG, "open() path=" + path + " rate=" + rate);
-                byteBuffer.reset();
-                SerialPortConfig.initSerial(path, rate, 0, 8, 1);
-                SerialManager.getInstance().addSerialListener(this);
-                boolean ok = SerialManager.getInstance().openSerialPort();
-                Log.d(TAG, "openSerialPort() result=" + ok);
+                boolean ok = openSerial(path, rate);
                 result.success(ok);
                 break;
             }
             case "close":
-                Log.d(TAG, "close()");
-                SerialManager.getInstance().closeSerialPort();
-                SerialManager.getInstance().removeSerialListener(this);
-                byteBuffer.reset();
+                closeSerial();
                 result.success(true);
                 break;
-
-            case "tare": {
-                byte[] cmd = SerialMessageUtil.getInstance().setting_remove_peel();
-                boolean sent = SerialManager.getInstance().send(cmd);
-                Log.d(TAG, "tare sent=" + sent);
-                result.success(sent);
+            case "tare":
+                result.success(sendCommand(SerialMessageUtil.getInstance().setting_remove_peel()));
                 break;
-            }
-            case "zero": {
-                byte[] cmd = SerialMessageUtil.getInstance().setting_zero();
-                boolean sent = SerialManager.getInstance().send(cmd);
-                Log.d(TAG, "zero sent=" + sent);
-                result.success(sent);
+            case "zero":
+                result.success(sendCommand(SerialMessageUtil.getInstance().setting_zero()));
                 break;
-            }
-            case "requestWeight": {
-                byte[] cmd = SerialMessageUtil.getInstance().send_weight();
-                boolean sent = SerialManager.getInstance().send(cmd);
-                Log.d(TAG, "requestWeight sent=" + sent);
-                result.success(sent);
+            case "requestWeight":
+                result.success(sendCommand(SerialMessageUtil.getInstance().send_weight()));
                 break;
-            }
             default:
                 result.notImplemented();
         }
     }
 
-    // ── EventChannel ─────────────────────────────────────────
     @Override
     public void onListen(Object arguments, EventChannel.EventSink events) {
         eventSink = events;
@@ -109,92 +82,164 @@ public class WeightChannel implements MethodChannel.MethodCallHandler,
         eventSink = null;
     }
 
-    // ── SerialListener ───────────────────────────────────────
-    @Override
-    public void onDataReceived(byte[] buffer, int size, WeightBean weightBean, String hexStr) {
-        // 拼接到缓冲区
-        byteBuffer.write(buffer, 0, size);
+    private boolean openSerial(String path, int rate) {
+        closeSerial();
+        try {
+            SerialPortConfig.initSerial(path, rate, 0, 8, 1);
+            serialPort = SerialPortDevices.getInstance().getSerialPort();
+            if (serialPort == null) {
+                Log.e(TAG, PATCH_VER + " open failed: serialPort null");
+                return false;
+            }
+            inputStream = serialPort.getInputStream();
+            outputStream = serialPort.getOutputStream();
+            byteBuffer.reset();
+            frameCount = 0;
+            startReadLoop();
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, PATCH_VER + " open exception", t);
+            closeSerial();
+            return false;
+        }
+    }
+
+    private void closeSerial() {
+        reading = false;
+        if (readThread != null) {
+            readThread.interrupt();
+            readThread = null;
+        }
+        try {
+            if (inputStream != null) inputStream.close();
+        } catch (IOException ignored) {
+        }
+        try {
+            if (outputStream != null) outputStream.close();
+        } catch (IOException ignored) {
+        }
+        inputStream = null;
+        outputStream = null;
+        serialPort = null;
+        try {
+            SerialPortDevices.getInstance().closeSerialPort();
+        } catch (Throwable ignored) {
+        }
+        byteBuffer.reset();
+    }
+
+    private boolean sendCommand(byte[] cmd) {
+        if (cmd == null || outputStream == null) return false;
+        try {
+            outputStream.write(cmd);
+            outputStream.flush();
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, PATCH_VER + " send command failed", e);
+            return false;
+        }
+    }
+
+    private void startReadLoop() {
+        if (inputStream == null) return;
+        reading = true;
+        readThread = new Thread(() -> {
+            byte[] buf = new byte[128];
+            while (reading && !Thread.currentThread().isInterrupted()) {
+                try {
+                    int n = inputStream.read(buf);
+                    if (n <= 0) continue;
+                    appendAndParse(buf, n);
+                } catch (IOException e) {
+                    if (reading) {
+                        Log.e(TAG, PATCH_VER + " read failed", e);
+                    }
+                    break;
+                } catch (Throwable t) {
+                    Log.e(TAG, PATCH_VER + " parse failed", t);
+                }
+            }
+        }, "WeightRawReader");
+        readThread.start();
+    }
+
+    private synchronized void appendAndParse(byte[] chunk, int size) {
+        byteBuffer.write(chunk, 0, size);
         byte[] accumulated = byteBuffer.toByteArray();
         byteBuffer.reset();
 
-        // 在缓冲区中扫描完整的16字节帧
+        if (accumulated.length > MAX_BUFFER_BYTES) {
+            int keepFrom = Math.max(0, accumulated.length - 256);
+            byteBuffer.write(accumulated, keepFrom, accumulated.length - keepFrom);
+            Log.w(TAG, PATCH_VER + " buffer overflow guarded");
+            return;
+        }
+
         int i = 0;
-        while (i <= accumulated.length - 16) {
-            // 帧头：0x01 0x02；帧尾：[13]=0x03 [14]=0x04
+        while (i <= accumulated.length - FRAME_LEN) {
             if ((accumulated[i] & 0xFF) == 0x01
                     && (accumulated[i + 1] & 0xFF) == 0x02
                     && (accumulated[i + 13] & 0xFF) == 0x03
                     && (accumulated[i + 14] & 0xFF) == 0x04) {
-                byte[] packet = Arrays.copyOfRange(accumulated, i, i + 16);
-                emitPacket(packet);
-                i += 16;
+                byte[] frame = Arrays.copyOfRange(accumulated, i, i + FRAME_LEN);
+                emitFrame(frame);
+                frameCount++;
+                i += FRAME_LEN;
             } else {
                 i++;
             }
         }
 
-        // 剩余不足一帧的字节留待下次处理
         if (i < accumulated.length) {
             byteBuffer.write(accumulated, i, accumulated.length - i);
         }
     }
 
-    private void emitPacket(byte[] p) {
-        // p[2]  : 状态 'S'/'U'/'F'
-        // p[3]  : 符号 '+'/'-'
-        // p[4~9]: 重量字符串 6字节 ASCII
-        // p[12] : BCC (忽略校验，直接解析)
-        // p[15] : 状态2
+    private void emitFrame(byte[] frame) {
+        char state1 = (char) (frame[2] & 0xFF);
+        boolean isPlus = (frame[3] & 0xFF) != '-';
+        String weightString = new String(frame, 4, 6, StandardCharsets.US_ASCII);
+        String unit = new String(frame, 10, 2, StandardCharsets.US_ASCII);
 
-        char state1 = (char) (p[2] & 0xFF);
-        boolean isPlus = (p[3] & 0xFF) != '-';
-        String weightStr = new String(p, 4, 6).trim();
-
-        double kg = 0.0;
-        boolean valid = false;
-        boolean stable = state1 == 'S';
-
-        if (state1 != 'F') { // 'F' = 溢出/未归零
-            try {
-                kg = Double.parseDouble(weightStr) * (isPlus ? 1.0 : -1.0);
-                valid = true;
-            } catch (NumberFormatException e) {
-                Log.w(TAG, "weight parse failed: [" + weightStr + "]");
-            }
+        double netWeight = 0.0;
+        try {
+            netWeight = Double.parseDouble(weightString) * (isPlus ? 1.0 : -1.0);
+        } catch (NumberFormatException e) {
+            Log.w(TAG, PATCH_VER + " invalid weight string: " + weightString);
+            return;
         }
 
-        // 状态2 Bit4=零点
-        int state2 = p[15] & 0xFF;
+        int state2 = frame[15] & 0xFF;
         boolean isZero = ((state2 >> 4) & 1) == 1;
+        boolean isTare = ((state2 >> 5) & 1) == 1;
+        boolean isOverWeight = (state1 == 'F') || (((state2 >> 6) & 1) == 1);
+        boolean stable = state1 == 'S';
+        boolean valid = (state1 != 'F') && !isOverWeight;
 
-        // 构造十六进制字符串用于日志
         StringBuilder sb = new StringBuilder();
-        for (byte b : p) sb.append(String.format("%02X", b & 0xFF));
-        Log.d(TAG, "packet=" + sb + " state1=" + state1 + " kg=" + kg + " stable=" + stable + " isZero=" + isZero);
-
-        final double fKg = kg;
+        for (byte b : frame) sb.append(String.format("%02X", b & 0xFF));
+        final String rawHex = sb.toString();
+        final double fKg = netWeight;
         final boolean fStable = stable;
         final boolean fValid = valid;
-        final String fRaw = sb.toString();
+        final boolean fZero = isZero;
+        final boolean fTare = isTare;
+        final String fUnit = unit;
+        // Per-frame logs are intentionally disabled to avoid logcat spam.
 
         mainHandler.post(() -> {
             if (eventSink == null) return;
-            Map<String, Object> data = new HashMap<>();
-            data.put("raw", fRaw);
-            data.put("kg", fKg);
-            data.put("stable", fStable);
-            data.put("valid", fValid);
-            eventSink.success(data);
-        });
-    }
-
-    @Override
-    public void openSerialError(String path, int errorCode) {
-        Log.e(TAG, "Serial open error: " + path + " code=" + errorCode);
-        mainHandler.post(() -> {
-            if (eventSink != null) {
-                eventSink.error("SERIAL_ERROR", "Failed to open " + path, errorCode);
-            }
+            Map<String, Object> map = new HashMap<>();
+            map.put("raw", rawHex);
+            map.put("kg", fKg);
+            map.put("netWeight", fKg);
+            map.put("stable", fStable);
+            map.put("isStable", fStable);
+            map.put("valid", fValid);
+            map.put("isZero", fZero);
+            map.put("isTare", fTare);
+            map.put("unit", fUnit);
+            eventSink.success(map);
         });
     }
 }
