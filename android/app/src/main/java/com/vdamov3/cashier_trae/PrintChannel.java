@@ -216,8 +216,7 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
             }
         }
         detail.append(line('-', 32)).append("\n");
-        detail.append(String.format("รวม / Total: %.2f ฿\n", total));
-        detail.append("\n\n\n");  // 走纸
+        detail.append(String.format("รวม / Total: %.2f ฿\n\n", total));
 
         // ③ 打出即将渲染的完整票据内容，方便核对泰文
         Log.d(TAG, "renderTicket title=[" + title + "]");

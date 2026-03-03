@@ -29,25 +29,6 @@ class DbService {
             is_by_weight INTEGER NOT NULL DEFAULT 1
           )
         ''');
-        // 预置几条示例菜单
-        await db.insert('menu_items', {
-          'name_th': 'ผักบุ้ง',
-          'name_cn': '空心菜',
-          'price': 20.0,
-          'is_by_weight': 1,
-        });
-        await db.insert('menu_items', {
-          'name_th': 'หมูสับ',
-          'name_cn': '猪肉末',
-          'price': 80.0,
-          'is_by_weight': 1,
-        });
-        await db.insert('menu_items', {
-          'name_th': 'ไก่ทอด',
-          'name_cn': '炸鸡',
-          'price': 15.0,
-          'is_by_weight': 0,
-        });
       },
     );
   }

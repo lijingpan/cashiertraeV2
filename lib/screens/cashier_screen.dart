@@ -254,20 +254,23 @@ class _CashierScreenState extends State<CashierScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.9,
-          ),
-          itemCount: _menuItems.length,
-          itemBuilder: (_, i) => _MenuCard(
-            item: _menuItems[i],
-            selected: _selectedItem?.id == _menuItems[i].id,
-            onTap: () => _selectMenuItem(_menuItems[i]),
-            lp: lp,
+        child: ScrollConfiguration(
+          behavior: const ScrollBehavior().copyWith(scrollbars: false),
+          child: GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.95,
+            ),
+            itemCount: _menuItems.length,
+            itemBuilder: (_, i) => _MenuCard(
+              item: _menuItems[i],
+              selected: _selectedItem?.id == _menuItems[i].id,
+              onTap: () => _selectMenuItem(_menuItems[i]),
+              lp: lp,
+            ),
           ),
         ),
       ),
@@ -418,32 +421,40 @@ class _CashierScreenState extends State<CashierScreen> {
     return ListView.separated(
       padding: const EdgeInsets.all(12),
       itemCount: _cart.length,
-      separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+      separatorBuilder: (context, index) => const Divider(height: 1, thickness: 1.5, color: Color(0xFFF1F5F9)),
       itemBuilder: (_, i) {
         final item = _cart[i];
         final isZh = lp.localeStr == 'zh' && item.menuItem.nameCn.isNotEmpty;
         final name = isZh ? item.menuItem.nameCn : item.menuItem.nameTh;
         final unit = item.menuItem.isByWeight ? lp.tr('unit_kg') : lp.tr('unit_pc');
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1E293B))),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item.weight.toStringAsFixed(3)} $unit × ${item.menuItem.price.toStringAsFixed(2)} ฿',
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A))),
+                    const SizedBox(height: 8),
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(fontSize: 18, color: Color(0xFF64748B)),
+                        children: [
+                          TextSpan(text: item.weight.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0284C7), fontSize: 22)),
+                          const TextSpan(text: ' '),
+                          TextSpan(text: unit, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          const TextSpan(text: ' × '),
+                          TextSpan(text: '${item.menuItem.price.toStringAsFixed(2)} ฿', style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF10B981))),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
               Text(
                 '฿ ${item.subtotal.toStringAsFixed(2)}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0F172A), letterSpacing: -0.5),
               ),
               const SizedBox(width: 8),
               IconButton(
@@ -528,96 +539,96 @@ class _MenuCard extends StatelessWidget {
     final primaryName = isZh ? item.nameCn : item.nameTh;
     final secondaryName = isZh ? item.nameTh : (item.nameCn.isNotEmpty ? item.nameCn : '');
     
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFF0284C7) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
-            width: 2,
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF0284C7) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+              width: 1.5,
+            ),
+            boxShadow: selected
+                ? [const BoxShadow(color: Color(0x330284C7), blurRadius: 10, offset: Offset(0, 4))]
+                : [const BoxShadow(color: Color(0x05000000), blurRadius: 4, offset: Offset(0, 2))],
           ),
-          boxShadow: selected
-              ? [const BoxShadow(color: Color(0x660284C7), blurRadius: 16, offset: Offset(0, 8))]
-              : [const BoxShadow(color: Color(0x05000000), blurRadius: 4, offset: Offset(0, 2))],
-        ),
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: item.isByWeight 
-                          ? [const Color(0xFF0EA5E9), const Color(0xFF38BDF8)]
-                          : [const Color(0xFFF59E0B), const Color(0xFFFBBF24)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: item.isByWeight 
+                            ? [const Color(0xFF0EA5E9), const Color(0xFF38BDF8)]
+                            : [const Color(0xFFF59E0B), const Color(0xFFFBBF24)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (item.isByWeight ? const Color(0xFF0EA5E9) : const Color(0xFFF59E0B)).withOpacity(0.15),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          )
+                        ],
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (item.isByWeight ? const Color(0xFF0EA5E9) : const Color(0xFFF59E0B)).withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        )
-                      ],
+                      child: Icon(
+                        item.isByWeight ? Icons.scale_rounded : Icons.fastfood_rounded,
+                        size: 24,
+                        color: Colors.white,
+                      ),
                     ),
-                    child: Icon(
-                      item.isByWeight ? Icons.scale_rounded : Icons.fastfood_rounded,
-                      size: 24,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    primaryName,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: selected ? Colors.white : const Color(0xFF1E293B)),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (secondaryName.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const Spacer(),
                     Text(
-                      secondaryName,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: selected ? const Color(0xDDFFFFFF) : const Color(0xFF94A3B8)),
-                      maxLines: 1,
+                      primaryName,
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: selected ? Colors.white : const Color(0xFF0F172A), height: 1.1),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (secondaryName.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        secondaryName,
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: selected ? const Color(0xDDFFFFFF) : const Color(0xFF64748B)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: selected ? Colors.white.withOpacity(0.2) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
-                  item.isByWeight
-                      ? '${item.price.toStringAsFixed(2)} ${lp.tr('price_kg')}'
-                      : '${item.price.toStringAsFixed(2)} ${lp.tr('price_pc')}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: selected ? Colors.white : const Color(0xFF0F172A),
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: selected ? Colors.white.withOpacity(0.2) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    item.isByWeight
+                        ? '${item.price.toStringAsFixed(2)} ${lp.tr('price_kg')}'
+                        : '${item.price.toStringAsFixed(2)} ${lp.tr('price_pc')}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: selected ? Colors.white : const Color(0xFF0284C7),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
