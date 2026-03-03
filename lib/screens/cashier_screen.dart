@@ -257,10 +257,10 @@ class _CashierScreenState extends State<CashierScreen> {
         child: GridView.builder(
           padding: const EdgeInsets.all(16),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
+            crossAxisCount: 5,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 0.95,
+            childAspectRatio: 0.9,
           ),
           itemCount: _menuItems.length,
           itemBuilder: (_, i) => _MenuCard(
@@ -313,34 +313,10 @@ class _CashierScreenState extends State<CashierScreen> {
           // 1. 顶部始终显示当前称重状态 (Always show the live scale weight)
           _WeightDisplay(kg: _currentKg, valid: _scaleConnected, stable: _weightStable, lp: lp),
           const SizedBox(height: 16),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.exposure_zero_rounded),
-                label: Text(lp.tr('tare')),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: () => _weight.tare(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text(lp.tr('zero')),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: () => _weight.zero(),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 16),
+          // Removed tare and zero buttons per user request
+          const SizedBox(height: 8),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
           // 2. 根据左右选择情况显示操作状态
           if (hasSelected) ...[
@@ -377,12 +353,12 @@ class _CashierScreenState extends State<CashierScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                icon: const Icon(Icons.add_shopping_cart_rounded),
-                label: Text(lp.tr('add_to_cart'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.add_shopping_cart_rounded, size: 26),
+                label: Text(lp.tr('add_to_cart'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981), // Emerald 500
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(vertical: 22),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 onPressed: () => _addToCart(lp),
               ),
@@ -390,25 +366,25 @@ class _CashierScreenState extends State<CashierScreen> {
           ],
           if (hasSelected && !_selectedItem!.isByWeight) ...[
             Row(children: [
-              Text(lp.tr('qty'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+              Text(lp.tr('qty'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
               const Spacer(),
               _QtyButton(icon: Icons.remove_rounded, onPressed: () => setState(() => _fixedQty = (_fixedQty - 1).clamp(1, 99))),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text('$_fixedQty', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                child: Text('$_fixedQty', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
               ),
               _QtyButton(icon: Icons.add_rounded, onPressed: () => setState(() => _fixedQty = (_fixedQty + 1).clamp(1, 99))),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                icon: const Icon(Icons.add_shopping_cart_rounded),
-                label: Text(lp.tr('add_to_cart'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.add_shopping_cart_rounded, size: 26),
+                label: Text(lp.tr('add_to_cart'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(vertical: 22),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 onPressed: () => _addToCart(lp),
               ),
@@ -456,26 +432,26 @@ class _CashierScreenState extends State<CashierScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B))),
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1E293B))),
                     const SizedBox(height: 4),
                     Text(
                       '${item.weight.toStringAsFixed(3)} $unit × ${item.menuItem.price.toStringAsFixed(2)} ฿',
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
               ),
               Text(
                 '฿ ${item.subtotal.toStringAsFixed(2)}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                icon: const Icon(Icons.delete_outline_rounded, size: 28),
                 onPressed: () => _removeCartItem(i),
                 color: const Color(0xFFEF4444), // Red 500
-                visualDensity: VisualDensity.compact,
-                splashRadius: 20,
+                visualDensity: VisualDensity.standard,
+                splashRadius: 28,
               ),
             ],
           ),
@@ -496,10 +472,10 @@ class _CashierScreenState extends State<CashierScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(lp.tr('total').toUpperCase(), style: const TextStyle(color: Color(0xFF64748B), fontSize: 14, fontWeight: FontWeight.bold)),
+              Text(lp.tr('total').toUpperCase(), style: const TextStyle(color: Color(0xFF64748B), fontSize: 16, fontWeight: FontWeight.bold)),
               Text(
                 '฿ ${_total.toStringAsFixed(2)}',
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)), // Sky 600
+                style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)), // Sky 600
               ),
             ],
           ),
@@ -507,24 +483,24 @@ class _CashierScreenState extends State<CashierScreen> {
           Row(
             children: [
               TextButton.icon(
-                icon: const Icon(Icons.delete_sweep_rounded),
-                label: Text(lp.tr('clear')),
+                icon: const Icon(Icons.delete_sweep_rounded, size: 24),
+                label: Text(lp.tr('clear'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 style: TextButton.styleFrom(
                   foregroundColor: const Color(0xFFEF4444),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                 ),
                 onPressed: _cart.isEmpty ? null : _clearCart,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton.icon(
-                  icon: const Icon(Icons.receipt_long_rounded, size: 22),
-                  label: Text(lp.tr('print_ticket'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.receipt_long_rounded, size: 28),
+                  label: Text(lp.tr('print_ticket'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF0EA5E9), // Sky 500
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.symmetric(vertical: 22),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     elevation: 0,
                   ),
                   onPressed: _cart.isEmpty ? null : () => _printReceipt(lp),
@@ -565,57 +541,83 @@ class _MenuCard extends StatelessWidget {
             width: 2,
           ),
           boxShadow: selected
-              ? [const BoxShadow(color: Color(0x660284C7), blurRadius: 12, offset: Offset(0, 6))]
+              ? [const BoxShadow(color: Color(0x660284C7), blurRadius: 16, offset: Offset(0, 8))]
               : [const BoxShadow(color: Color(0x05000000), blurRadius: 4, offset: Offset(0, 2))],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                item.isByWeight ? Icons.scale_rounded : Icons.fastfood_rounded,
-                size: 32,
-                color: selected ? Colors.white : const Color(0xFF94A3B8),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: item.isByWeight 
+                          ? [const Color(0xFF0EA5E9), const Color(0xFF38BDF8)]
+                          : [const Color(0xFFF59E0B), const Color(0xFFFBBF24)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (item.isByWeight ? const Color(0xFF0EA5E9) : const Color(0xFFF59E0B)).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: Icon(
+                      item.isByWeight ? Icons.scale_rounded : Icons.fastfood_rounded,
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    primaryName,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: selected ? Colors.white : const Color(0xFF1E293B)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (secondaryName.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      secondaryName,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: selected ? const Color(0xDDFFFFFF) : const Color(0xFF94A3B8)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
               ),
-              const Spacer(),
-              Text(
-                primaryName,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: selected ? Colors.white : const Color(0xFF1E293B)),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (secondaryName.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  secondaryName,
-                  style: TextStyle(fontSize: 11, color: selected ? const Color(0xBBFFFFFF) : const Color(0xFF94A3B8)),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: selected ? const Color(0x33FFFFFF) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(8)
+                  color: selected ? Colors.white.withOpacity(0.2) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   item.isByWeight
                       ? '${item.price.toStringAsFixed(2)} ${lp.tr('price_kg')}'
                       : '${item.price.toStringAsFixed(2)} ${lp.tr('price_pc')}',
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: selected ? Colors.white : const Color(0xFF0284C7),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: selected ? Colors.white : const Color(0xFF0F172A),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -643,21 +645,21 @@ class _WeightDisplay extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.scale_rounded, color: valid ? const Color(0xFF16A34A) : const Color(0xFF94A3B8), size: 32),
-          const SizedBox(width: 16),
+          Icon(Icons.scale_rounded, color: valid ? const Color(0xFF16A34A) : const Color(0xFF94A3B8), size: 44),
+          const SizedBox(width: 20),
           Text(
             '${kg.toStringAsFixed(3)} kg',
             style: TextStyle(
-              fontSize: 36,
+              fontSize: 48,
               fontWeight: FontWeight.w900,
               color: valid ? const Color(0xFF166534) : const Color(0xFF64748B),
               fontFeatures: const [FontFeature.tabularFigures()],
-              letterSpacing: -0.5,
+              letterSpacing: -1.0,
             ),
           ),
           if (valid && stable) ...[
-            const SizedBox(width: 12),
-            Container(width: 12, height: 12, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF10B981))),
+            const SizedBox(width: 16),
+            Container(width: 16, height: 16, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF10B981))),
           ]
         ],
       ),
@@ -680,10 +682,10 @@ class _QtyButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          width: 48,
-          height: 48,
+          width: 64,
+          height: 64,
           alignment: Alignment.center,
-          child: Icon(icon, size: 24, color: const Color(0xFF0F172A)),
+          child: Icon(icon, size: 32, color: const Color(0xFF0F172A)),
         ),
       ),
     );
@@ -704,16 +706,16 @@ class _StatusChip extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: connected ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: connected ? const Color(0xFFB1F2C2) : const Color(0xFFFECACA))
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: connected ? const Color(0xFFB1F2C2) : const Color(0xFFFECACA), width: 1.5)
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: connected ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: connected ? const Color(0xFF16A34A) : const Color(0xFFDC2626))),
+          Icon(icon, size: 20, color: connected ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: connected ? const Color(0xFF16A34A) : const Color(0xFFDC2626))),
         ]),
       ),
     );

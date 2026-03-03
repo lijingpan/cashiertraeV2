@@ -24,7 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    _pathCtrl.text = prefs.getString('serial_path') ?? '/dev/ttyS3';
+    _pathCtrl.text = prefs.getString('serial_path') ?? '/dev/ttyS4';
     _rateCtrl.text = (prefs.getInt('serial_rate') ?? 9600).toString();
     _shopCtrl.text = prefs.getString('shop_name') ?? 'ร้านอาหาร';
   }
@@ -41,7 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _testScale(LocaleProvider lp) async {
     final prefs = await SharedPreferences.getInstance();
-    final path = prefs.getString('serial_path') ?? '/dev/ttyS3';
+    final path = prefs.getString('serial_path') ?? '/dev/ttyS4';
     final rate = prefs.getInt('serial_rate') ?? 9600;
     final ok = await WeightService().open(path: path, rate: rate);
     if (!mounted) return;
@@ -102,23 +102,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.cable_rounded),
-                  label: Text(lp.tr('test_connection')),
+                  icon: const Icon(Icons.cable_rounded, size: 24),
+                  label: Text(lp.tr('test_connection'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   onPressed: () => _testScale(lp),
                 ),
               ]),
               const SizedBox(height: 32),
               FilledButton.icon(
-                icon: const Icon(Icons.save_rounded),
-                label: Text(lp.tr('save_settings'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.save_rounded, size: 24),
+                label: Text(lp.tr('save_settings'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF0284C7),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 onPressed: () => _save(lp),
               ),
