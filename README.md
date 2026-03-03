@@ -21,3 +21,6 @@ samples, guidance on mobile development, and a full API reference.
  adb devices
 
  flutter run -d 192.168.1.240:5555
+
+
+ flutter pub get; flutter build apk --release
