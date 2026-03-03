@@ -66,12 +66,21 @@ class WeightData {
     required this.valid,
   });
 
-  factory WeightData.fromMap(Map<String, dynamic> m) => WeightData(
-        raw: m['raw'] as String? ?? '0',
-        kg: (m['kg'] as num?)?.toDouble() ?? 0.0,
-        stable: m['stable'] as bool? ?? false,
-        valid: m['valid'] as bool? ?? false,
-      );
+  factory WeightData.fromMap(Map<String, dynamic> m) {
+    double tempKg = 0.0;
+    if (m['kg'] != null) {
+      tempKg = (m['kg'] as num).toDouble();
+    } else if (m['netWeight'] != null) {
+      tempKg = (m['netWeight'] as num).toDouble();
+    }
+    
+    return WeightData(
+      raw: m['raw'] as String? ?? '0',
+      kg: tempKg,
+      stable: m['stable'] as bool? ?? m['isStable'] as bool? ?? false,
+      valid: m['valid'] as bool? ?? m['isStable'] as bool? ?? false,
+    );
+  }
 
   @override
   String toString() => 'WeightData(kg=$kg, stable=$stable, valid=$valid)';

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/weight_service.dart';
+import '../l10n/locale_provider.dart';
 
-/// 串口 & 打印机配置页面
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -28,84 +29,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _shopCtrl.text = prefs.getString('shop_name') ?? 'ร้านอาหาร';
   }
 
-  Future<void> _save() async {
+  Future<void> _save(LocaleProvider lp) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('serial_path', _pathCtrl.text.trim());
     await prefs.setInt('serial_rate', int.tryParse(_rateCtrl.text.trim()) ?? 9600);
     await prefs.setString('shop_name', _shopCtrl.text.trim());
-    setState(() {});  // 触发重绘显示保存反馈
+    setState(() {});
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('设置已保存，重新连接称重后生效')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lp.tr('settings_saved'))));
   }
 
-  Future<void> _testScale() async {
+  Future<void> _testScale(LocaleProvider lp) async {
     final prefs = await SharedPreferences.getInstance();
     final path = prefs.getString('serial_path') ?? '/dev/ttyS3';
     final rate = prefs.getInt('serial_rate') ?? 9600;
     final ok = await WeightService().open(path: path, rate: rate);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? '串口连接成功: $path' : '串口连接失败')));
+      SnackBar(content: Text(ok ? lp.tr('serial_success', args: {'path': path}) : lp.tr('serial_fail'))));
   }
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LocaleProvider>(context);
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('设置'),
-        backgroundColor: const Color(0xFF1976D2),
-        foregroundColor: Colors.white,
+        title: Text(lp.tr('settings'), style: const TextStyle(fontWeight: FontWeight.w700)),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0F172A),
+        elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _Section(title: '店铺信息', children: [
-            TextField(
-              controller: _shopCtrl,
-              decoration: const InputDecoration(
-                labelText: '店名（泰文，打印在票头）',
-                border: OutlineInputBorder(),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              _Section(title: lp.tr('shop_info'), children: [
+                TextField(
+                  controller: _shopCtrl,
+                  decoration: InputDecoration(
+                    labelText: lp.tr('shop_name'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 24),
+              _Section(title: lp.tr('serial_setting'), children: [
+                TextField(
+                  controller: _pathCtrl,
+                  decoration: InputDecoration(
+                    labelText: lp.tr('serial_path'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _rateCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: lp.tr('baud_rate'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.cable_rounded),
+                  label: Text(lp.tr('test_connection')),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => _testScale(lp),
+                ),
+              ]),
+              const SizedBox(height: 32),
+              FilledButton.icon(
+                icon: const Icon(Icons.save_rounded),
+                label: Text(lp.tr('save_settings'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0284C7),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => _save(lp),
               ),
-            ),
-          ]),
-          const SizedBox(height: 20),
-          _Section(title: '称重秤 — 串口设置', children: [
-            TextField(
-              controller: _pathCtrl,
-              decoration: const InputDecoration(
-                labelText: '串口路径 (如 /dev/ttyS3)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _rateCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '波特率 (如 9600)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.cable),
-              label: const Text('测试串口连接'),
-              onPressed: _testScale,
-            ),
-          ]),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.save),
-            label: const Text('保存设置'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1976D2),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: _save,
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -119,15 +138,27 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1976D2))),
-        const SizedBox(height: 12),
-        ...children,
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 4, offset: Offset(0, 2))],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(width: 4, height: 16, decoration: BoxDecoration(color: const Color(0xFF0284C7), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
     );
   }
 }

@@ -1,0 +1,7 @@
+Analyzing cashiertraeV2...
+
+   info - lib\l10n\locale_provider.dart:15:3 - Missing type annotation. Try adding a type annotation. - strict_top_level_inference
+   info - lib\screens\menu_screen.dart:86:19 - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - lib\screens\menu_screen.dart:198:51 - Use interpolation to compose strings and values. Try using string interpolation to build the composite string. - prefer_interpolation_to_compose_strings
+
+3 issues found.
