@@ -12,11 +12,10 @@ import com.weight.serialport.SerialPortConfig;
 import com.weight.serialport.sdk.data.WeightBean;
 import com.weight.serialport.sdk.until.SerialMessageUtil;
 
-import java.lang.reflect.Field;
+import java.io.ByteArrayOutputStream;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -24,8 +23,17 @@ import io.flutter.plugin.common.MethodChannel;
 
 /**
  * 称重通道 — 通过 serialport AAR 读取串口称重数据，经 EventChannel 推送到 Flutter。
- * MethodChannel: "cashier/weight"
- * EventChannel:  "cashier/weight/events"
+ * 协议：16字节定长帧
+ *   [0]  0x01 SOH
+ *   [1]  0x02 STX
+ *   [2]  状态字符: 'S'=稳定 'U'=不稳定 'F'=溢出/未归零
+ *   [3]  符号: '+'或'-'
+ *   [4~9]  重量ASCII字符串，6位，如"00.260"（单位kg）
+ *   [10~11] 单位"kg"
+ *   [12]   BCC校验
+ *   [13]  0x03 ETX
+ *   [14]  0x04 EOT
+ *   [15]  状态2: Bit4=零点 Bit5=去皮模式 Bit6=溢出
  */
 public class WeightChannel implements MethodChannel.MethodCallHandler,
         EventChannel.StreamHandler, SerialListener {
@@ -34,6 +42,9 @@ public class WeightChannel implements MethodChannel.MethodCallHandler,
     private EventChannel.EventSink eventSink;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    // 字节缓冲区，处理串口拆包
+    private final ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
+
     // ── MethodChannel ────────────────────────────────────────
     @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
@@ -41,10 +52,11 @@ public class WeightChannel implements MethodChannel.MethodCallHandler,
             case "open": {
                 String path = call.argument("path");
                 Integer rate = call.argument("rate");
-                if (path == null) path = "/dev/ttyS3";
+                if (path == null) path = "/dev/ttyS4";
                 if (rate == null) rate = 9600;
 
                 Log.d(TAG, "open() path=" + path + " rate=" + rate);
+                byteBuffer.reset();
                 SerialPortConfig.initSerial(path, rate, 0, 8, 1);
                 SerialManager.getInstance().addSerialListener(this);
                 boolean ok = SerialManager.getInstance().openSerialPort();
@@ -56,6 +68,7 @@ public class WeightChannel implements MethodChannel.MethodCallHandler,
                 Log.d(TAG, "close()");
                 SerialManager.getInstance().closeSerialPort();
                 SerialManager.getInstance().removeSerialListener(this);
+                byteBuffer.reset();
                 result.success(true);
                 break;
 
@@ -98,103 +111,81 @@ public class WeightChannel implements MethodChannel.MethodCallHandler,
 
     // ── SerialListener ───────────────────────────────────────
     @Override
-    @SuppressWarnings("rawtypes")
-    public void onDataReceived(byte[] buffer, int size, WeightBean weightBean, String hex) {
-        Log.d(TAG, "onDataReceived hex=[" + hex + "] size=" + size);
+    public void onDataReceived(byte[] buffer, int size, WeightBean weightBean, String hexStr) {
+        // 拼接到缓冲区
+        byteBuffer.write(buffer, 0, size);
+        byte[] accumulated = byteBuffer.toByteArray();
+        byteBuffer.reset();
+
+        // 在缓冲区中扫描完整的16字节帧
+        int i = 0;
+        while (i <= accumulated.length - 16) {
+            // 帧头：0x01 0x02；帧尾：[13]=0x03 [14]=0x04
+            if ((accumulated[i] & 0xFF) == 0x01
+                    && (accumulated[i + 1] & 0xFF) == 0x02
+                    && (accumulated[i + 13] & 0xFF) == 0x03
+                    && (accumulated[i + 14] & 0xFF) == 0x04) {
+                byte[] packet = Arrays.copyOfRange(accumulated, i, i + 16);
+                emitPacket(packet);
+                i += 16;
+            } else {
+                i++;
+            }
+        }
+
+        // 剩余不足一帧的字节留待下次处理
+        if (i < accumulated.length) {
+            byteBuffer.write(accumulated, i, accumulated.length - i);
+        }
+    }
+
+    private void emitPacket(byte[] p) {
+        // p[2]  : 状态 'S'/'U'/'F'
+        // p[3]  : 符号 '+'/'-'
+        // p[4~9]: 重量字符串 6字节 ASCII
+        // p[12] : BCC (忽略校验，直接解析)
+        // p[15] : 状态2
+
+        char state1 = (char) (p[2] & 0xFF);
+        boolean isPlus = (p[3] & 0xFF) != '-';
+        String weightStr = new String(p, 4, 6).trim();
+
+        double kg = 0.0;
+        boolean valid = false;
+        boolean stable = state1 == 'S';
+
+        if (state1 != 'F') { // 'F' = 溢出/未归零
+            try {
+                kg = Double.parseDouble(weightStr) * (isPlus ? 1.0 : -1.0);
+                valid = true;
+            } catch (NumberFormatException e) {
+                Log.w(TAG, "weight parse failed: [" + weightStr + "]");
+            }
+        }
+
+        // 状态2 Bit4=零点
+        int state2 = p[15] & 0xFF;
+        boolean isZero = ((state2 >> 4) & 1) == 1;
+
+        // 构造十六进制字符串用于日志
+        StringBuilder sb = new StringBuilder();
+        for (byte b : p) sb.append(String.format("%02X", b & 0xFF));
+        Log.d(TAG, "packet=" + sb + " state1=" + state1 + " kg=" + kg + " stable=" + stable + " isZero=" + isZero);
+
+        final double fKg = kg;
+        final boolean fStable = stable;
+        final boolean fValid = valid;
+        final String fRaw = sb.toString();
 
         mainHandler.post(() -> {
             if (eventSink == null) return;
-
-            Object dataObj = weightBean.data;
-            String raw = dataObj != null ? dataObj.toString().trim() : "0";
-
-            double kg = 0.0;
-            boolean stable = false;
-            boolean valid = false;
-
-            // ── 方案1：反射提取 netWeight / isStable ─────────────
-            // WeightBean.data 是 WeightInfo 对象时走这里
-            if (dataObj != null) {
-                try {
-                    kg = getDoubleField(dataObj, "netWeight");
-                    stable = getBoolField(dataObj, "isStable");
-                    valid = true;
-                    Log.d(TAG, "weight[reflect] netWeight=" + kg + " isStable=" + stable);
-                } catch (Exception e1) {
-
-                    // ── 方案2：从 toString() 用更为宽泛的正则解析 ──────────────
-                    try {
-                        Matcher mKg = Pattern.compile("netWeight[^\\d\\.\\-]+(-?\\d+\\.?\\d*)").matcher(raw);
-                        if (mKg.find()) {
-                            kg = Double.parseDouble(mKg.group(1));
-                            valid = true;
-                        } else {
-                            // 有些秤可能叫 weight
-                            Matcher mKg2 = Pattern.compile("weight[^\\d\\.\\-]+(-?\\d+\\.?\\d*)").matcher(raw);
-                            if (mKg2.find()) {
-                                kg = Double.parseDouble(mKg2.group(1));
-                                valid = true;
-                            }
-                        }
-                        Matcher mStable = Pattern.compile("isStable[^a-zA-Z]+(true|false)").matcher(raw);
-                        if (mStable.find()) {
-                            stable = "true".equals(mStable.group(1));
-                        } else {
-                            // 有些秤可能叫 stable
-                            Matcher mStable2 = Pattern.compile("stable[^a-zA-Z]+(true|false)").matcher(raw);
-                            if (mStable2.find()) {
-                                stable = "true".equals(mStable2.group(1));
-                            }
-                        }
-                        if (valid) {
-                            Log.d(TAG, "weight[regex] netWeight=" + kg + " isStable=" + stable);
-                        } else {
-                            Log.w(TAG, "weight[regex] no netWeight found, raw=" + raw);
-                        }
-                    } catch (Exception e2) {
-                        Log.w(TAG, "weight[regex] failed: " + e2.getMessage());
-                    }
-
-                    // ── 方案3：data 本身就是数字 ──────────────────────
-                    if (!valid && dataObj instanceof Number) {
-                        kg = ((Number) dataObj).doubleValue();
-                        valid = kg > 0;
-                        Log.d(TAG, "weight[number] kg=" + kg);
-                    }
-                }
-            }
-
             Map<String, Object> data = new HashMap<>();
-            data.put("raw", raw);
-            data.put("kg", kg);
-            data.put("stable", stable);
-            data.put("valid", valid);
+            data.put("raw", fRaw);
+            data.put("kg", fKg);
+            data.put("stable", fStable);
+            data.put("valid", fValid);
             eventSink.success(data);
         });
-    }
-
-    private static double getDoubleField(Object obj, String name) throws Exception {
-        Field f = findField(obj.getClass(), name);
-        f.setAccessible(true);
-        Object val = f.get(obj);
-        if (val instanceof Number) return ((Number) val).doubleValue();
-        throw new NoSuchFieldException(name + " is not a Number");
-    }
-
-    private static boolean getBoolField(Object obj, String name) throws Exception {
-        Field f = findField(obj.getClass(), name);
-        f.setAccessible(true);
-        Object val = f.get(obj);
-        return Boolean.TRUE.equals(val);
-    }
-
-    /** 递归向父类查找字段，处理继承链 */
-    private static Field findField(Class<?> clz, String name) throws NoSuchFieldException {
-        while (clz != null && clz != Object.class) {
-            try { return clz.getDeclaredField(name); } catch (NoSuchFieldException ignore) {}
-            clz = clz.getSuperclass();
-        }
-        throw new NoSuchFieldException(name);
     }
 
     @Override

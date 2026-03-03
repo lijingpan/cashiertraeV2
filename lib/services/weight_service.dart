@@ -23,7 +23,7 @@ class WeightService {
   /// 打开串口，优先读取 SharedPreferences 中保存的设置。
   Future<bool> open({String? path, int? rate}) async {
     final prefs = await SharedPreferences.getInstance();
-    final p = path ?? prefs.getString('serial_path') ?? '/dev/ttyS3';
+    final p = path ?? prefs.getString('serial_path') ?? '/dev/ttyS4';
     final r = rate ?? prefs.getInt('serial_rate') ?? 9600;
     final result = await _method.invokeMethod<bool>('open', {'path': p, 'rate': r});
     return result ?? false;
