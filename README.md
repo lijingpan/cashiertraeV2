@@ -24,3 +24,6 @@ samples, guidance on mobile development, and a full API reference.
 
 
  flutter pub get; flutter build apk --release
+
+
+ flutter build apk --release; adb -s 192.168.1.240:5555 uninstall com.vdamov3.cashier_trae; adb -s 192.168.1.240:5555 install build\app\outputs\flutter-apk\app-release.apk
