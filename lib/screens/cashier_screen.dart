@@ -383,17 +383,28 @@ class _CashierScreenState extends State<CashierScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      lp.localeStr == 'zh' && _selectedItem!.nameCn.isNotEmpty ? _selectedItem!.nameCn : _selectedItem!.nameTh,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                      overflow: TextOverflow.ellipsis,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedItem!.nameTh,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (_selectedItem!.nameCn.isNotEmpty)
+                          Text(
+                            _selectedItem!.nameCn,
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF64748B).withOpacity(0.8)),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       _selectedItem!.isByWeight
                           ? '${_selectedItem!.price.toStringAsFixed(2)} ${lp.tr('price_kg')}'
                           : '${_selectedItem!.price.toStringAsFixed(2)} ${lp.tr('price_pc')}',
-                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 14, fontWeight: FontWeight.w500),
+                      style: const TextStyle(color: Color(0xFF0284C7), fontSize: 16, fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -473,8 +484,6 @@ class _CashierScreenState extends State<CashierScreen> {
       separatorBuilder: (context, index) => const Divider(height: 1, thickness: 1.5, color: Color(0xFFF1F5F9)),
       itemBuilder: (_, i) {
         final item = _cart[i];
-        final isZh = lp.localeStr == 'zh' && item.menuItem.nameCn.isNotEmpty;
-        final name = isZh ? item.menuItem.nameCn : item.menuItem.nameTh;
         final unit = item.menuItem.isByWeight ? lp.tr('unit_kg') : lp.tr('unit_pc');
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -484,7 +493,9 @@ class _CashierScreenState extends State<CashierScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A))),
+                    Text(item.menuItem.nameTh, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A), height: 1.1)),
+                    if (item.menuItem.nameCn.isNotEmpty)
+                      Text(item.menuItem.nameCn, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF64748B).withOpacity(0.7))),
                     const SizedBox(height: 8),
                     RichText(
                       text: TextSpan(
@@ -584,9 +595,8 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isZh = lp.localeStr == 'zh' && item.nameCn.isNotEmpty;
-    final primaryName = isZh ? item.nameCn : item.nameTh;
-    final secondaryName = isZh ? item.nameTh : (item.nameCn.isNotEmpty ? item.nameCn : '');
+    final primaryName = item.nameTh;
+    final secondaryName = item.nameCn;
     
     return RepaintBoundary(
       child: GestureDetector(
