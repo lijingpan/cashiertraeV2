@@ -177,8 +177,8 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
         Log.d(TAG, "executePrint: PrintRasterImageFromBitmap result=" + ok);
 
         if (ok) {
-            boolean cut = AutoReplyPrint.INSTANCE.CP_Pos_FeedAndHalfCutPaper(hPrinter);
-            Log.d(TAG, "executePrint: FeedAndHalfCutPaper result=" + cut);
+            boolean cut = AutoReplyPrint.INSTANCE.CP_Pos_HalfCutPaper(hPrinter);
+            Log.d(TAG, "executePrint: HalfCutPaper result=" + cut);
         }
         bmp.recycle();
         return ok;
