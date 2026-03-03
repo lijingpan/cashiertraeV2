@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:presentation_displays/displays_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,12 +38,54 @@ class _CashierScreenState extends State<CashierScreen> {
   bool _printerConnected = false;
   int _fixedQty = 1;
 
+  final DisplayManager _displayManager = DisplayManager();
+  bool _hasSecondaryDisplay = false;
+
   @override
   void initState() {
     super.initState();
     _loadMenu();
     _connectScale();
     _connectPrinter();
+    _setupSecondaryDisplay();
+  }
+
+  Future<void> _setupSecondaryDisplay() async {
+    try {
+      final displays = await _displayManager.getDisplays();
+      if (displays != null && displays.length > 1) {
+        final secondaryDisplay = displays[1];
+        await _displayManager.showSecondaryDisplay(
+          displayId: secondaryDisplay.displayId!, 
+          routerName: "presentation",
+        );
+        setState(() => _hasSecondaryDisplay = true);
+        _syncCartToSecondaryDisplay();
+      }
+    } catch (e) {
+      debugPrint('副屏初始化失败: $e');
+    }
+  }
+
+  void _syncCartToSecondaryDisplay() {
+    if (!_hasSecondaryDisplay) return;
+    
+    final cartData = _cart.map((e) {
+      return {
+        'name': e.menuItem.nameTh,
+        'price': e.menuItem.price,
+        'weight': e.weight,
+        'subtotal': e.subtotal,
+        'isByWeight': e.menuItem.isByWeight,
+      };
+    }).toList();
+
+    final payload = jsonEncode({
+      'cart': cartData,
+      'total': _total,
+    });
+    
+    _displayManager.transferDataToPresentation(payload);
   }
 
   @override
@@ -107,10 +151,12 @@ class _CashierScreenState extends State<CashierScreen> {
       _cart.add(CartItem(menuItem: item, weight: qty, subtotal: subtotal));
       _selectedItem = null;
     });
+    _syncCartToSecondaryDisplay();
   }
 
   void _removeCartItem(int index) {
     setState(() => _cart.removeAt(index));
+    _syncCartToSecondaryDisplay();
   }
 
   void _clearCart() {
@@ -118,6 +164,7 @@ class _CashierScreenState extends State<CashierScreen> {
       _cart.clear();
       _selectedItem = null;
     });
+    _syncCartToSecondaryDisplay();
   }
 
   double get _total => _cart.fold(0.0, (sum, e) => sum + e.subtotal);

@@ -37,6 +37,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <activity
+            android:name="presentation_displays.flutter_presentation_displays.PresentationDisplay"
+            android:theme="@android:style/Theme.Light.NoTitleBar.Fullscreen"
+            android:exported="true" />
     </application>
 
     <queries>

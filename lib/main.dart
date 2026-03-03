@@ -2,7 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'screens/cashier_screen.dart';
+import 'screens/customer_display_screen.dart';
 import 'l10n/locale_provider.dart';
+
+/// 副屏独立入口（被 presentation_displays 插件调用）
+@pragma('vm:entry-point')
+void secondaryDisplayMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: CustomerDisplayScreen(),
+  ));
+}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,7 +62,13 @@ class CashierApp extends StatelessWidget {
             ),
           ),
           locale: provider.locale,
-          home: const CashierScreen(),
+          initialRoute: '/',
+          onGenerateRoute: (settings) {
+            if (settings.name == 'presentation') {
+              return MaterialPageRoute(builder: (_) => const CustomerDisplayScreen());
+            }
+            return MaterialPageRoute(builder: (_) => const CashierScreen());
+          },
         );
       },
     );
