@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/menu_item.dart';
 import '../services/db_service.dart';
 import '../l10n/locale_provider.dart';
+import '../utils/top_toast.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -156,11 +157,11 @@ class _MenuScreenState extends State<MenuScreen> {
                 final nameTh = nameThCtrl.text.trim();
                 final price = double.tryParse(priceCtrl.text.trim());
                 if (nameTh.isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(lp.tr('enter_th_name'))));
+                  TopToast.show(ctx, lp.tr('enter_th_name'), type: ToastType.error);
                   return;
                 }
                 if (price == null || price < 0) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(lp.tr('enter_valid_price'))));
+                  TopToast.show(ctx, lp.tr('enter_valid_price'), type: ToastType.error);
                   return;
                 }
                 Navigator.pop(ctx, MenuItem(
@@ -183,6 +184,7 @@ class _MenuScreenState extends State<MenuScreen> {
     } else {
       await _db.updateMenuItem(saved);
     }
+    TopToast.show(context, lp.tr('save_success'), type: ToastType.success);
     await _load();
   }
 

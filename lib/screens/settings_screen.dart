@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/weight_service.dart';
 import '../l10n/locale_provider.dart';
+import '../utils/top_toast.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -36,7 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setString('shop_name', _shopCtrl.text.trim());
     setState(() {});
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lp.tr('settings_saved'))));
+    TopToast.show(context, lp.tr('settings_saved'), type: ToastType.success);
   }
 
   Future<void> _testScale(LocaleProvider lp) async {
@@ -45,8 +46,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final rate = prefs.getInt('serial_rate') ?? 9600;
     final ok = await WeightService().open(path: path, rate: rate);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? lp.tr('serial_success', args: {'path': path}) : lp.tr('serial_fail'))));
+    TopToast.show(
+      context,
+      ok ? lp.tr('serial_success', args: {'path': path}) : lp.tr('serial_fail'),
+      type: ok ? ToastType.success : ToastType.error,
+    );
   }
 
   @override

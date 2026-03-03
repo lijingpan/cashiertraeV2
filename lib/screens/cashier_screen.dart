@@ -4,6 +4,7 @@ import 'package:presentation_displays/displays_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/top_toast.dart';
 import '../models/menu_item.dart';
 import '../models/cart_item.dart';
 import '../services/db_service.dart';
@@ -137,7 +138,7 @@ class _CashierScreenState extends State<CashierScreen> {
 
     if (item.isByWeight) {
       if (!_weightValid || _currentKg <= 0) {
-        _showSnack(lp.tr('pls_put_on_scale'));
+        _showSnack(lp.tr('pls_put_on_scale'), type: ToastType.error);
         return;
       }
       qty = _currentKg;
@@ -186,15 +187,16 @@ class _CashierScreenState extends State<CashierScreen> {
     );
     if (!mounted) return;
     setState(() => _printerConnected = ok || _printerConnected);
-    _showSnack(lp.tr(ok ? 'print_success' : 'print_fail'));
+    _showSnack(
+      lp.tr(ok ? 'print_success' : 'print_fail'),
+      type: ok ? ToastType.success : ToastType.error,
+    );
     if (ok) _clearCart();
   }
 
-  void _showSnack(String msg) {
+  void _showSnack(String msg, {ToastType type = ToastType.info}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2), behavior: SnackBarBehavior.floating));
+    TopToast.show(context, msg, type: type);
   }
 
   @override
