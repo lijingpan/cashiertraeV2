@@ -1,0 +1,25 @@
+name: cashier_trae
+description: "离线收银台 — 称重 + 打印泰文票据"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  sqflite: ^2.3.3          # 本地数据库
+  path: ^1.9.0             # 数据库路径
+  shared_preferences: ^2.3.2  # 设置存储
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
