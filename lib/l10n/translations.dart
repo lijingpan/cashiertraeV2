@@ -52,6 +52,7 @@ class AppTranslations {
       'no_product': 'ไม่มีสินค้า คลิก + เพื่อเพิ่ม',
       'unit_kg': 'กิโลกรัม',
       'unit_pc': 'ชิ้น',
+      'zero': 'เซ็ตศูนย์',
     },
     'zh': {
       'app_title': '收银台',
@@ -105,6 +106,7 @@ class AppTranslations {
       'no_product': '暂无商品，点击 + 添加',
       'unit_kg': '公斤',
       'unit_pc': '件',
+      'zero': '置零',
     },
     'en': {
       'app_title': 'Cashier',
@@ -158,6 +160,7 @@ class AppTranslations {
       'no_product': 'No items, tap + to add',
       'unit_kg': 'kg',
       'unit_pc': 'pc',
+      'zero': 'Zero',
     }
   };
 }

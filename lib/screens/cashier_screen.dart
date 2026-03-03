@@ -310,6 +310,39 @@ class _CashierScreenState extends State<CashierScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. 顶部始终显示当前称重状态 (Always show the live scale weight)
+          _WeightDisplay(kg: _currentKg, valid: _scaleConnected, stable: _weightStable, lp: lp),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.exposure_zero_rounded),
+                label: Text(lp.tr('tare')),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: () => _weight.tare(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text(lp.tr('zero')),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: () => _weight.zero(),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 16),
+
+          // 2. 根据左右选择情况显示操作状态
           if (hasSelected) ...[
             Row(children: [
               Container(
@@ -341,34 +374,19 @@ class _CashierScreenState extends State<CashierScreen> {
             const SizedBox(height: 16),
           ],
           if (hasSelected && _selectedItem!.isByWeight) ...[
-            _WeightDisplay(kg: _currentKg, valid: _weightValid, stable: _weightStable, lp: lp),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.exposure_zero_rounded),
-                  label: Text(lp.tr('tare')),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  onPressed: () => _weight.tare(),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.add_shopping_cart_rounded),
+                label: Text(lp.tr('add_to_cart'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981), // Emerald 500
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
+                onPressed: () => _addToCart(lp),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.add_shopping_cart_rounded),
-                  label: Text(lp.tr('add_to_cart'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981), // Emerald 500
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  onPressed: () => _addToCart(lp),
-                ),
-              ),
-            ]),
+            ),
           ],
           if (hasSelected && !_selectedItem!.isByWeight) ...[
             Row(children: [

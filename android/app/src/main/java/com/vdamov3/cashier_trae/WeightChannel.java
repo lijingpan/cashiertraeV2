@@ -122,17 +122,29 @@ public class WeightChannel implements MethodChannel.MethodCallHandler,
                     Log.d(TAG, "weight[reflect] netWeight=" + kg + " isStable=" + stable);
                 } catch (Exception e1) {
 
-                    // ── 方案2：从 toString() 用正则解析 ──────────────
-                    // 格式：WeightInfo:{... netWeight:0.316, ... isStable:true ...}
+                    // ── 方案2：从 toString() 用更为宽泛的正则解析 ──────────────
                     try {
-                        Matcher mKg = Pattern.compile("netWeight[:\\s]+(\\d+\\.?\\d*)").matcher(raw);
+                        Matcher mKg = Pattern.compile("netWeight[^\\d\\.\\-]+(-?\\d+\\.?\\d*)").matcher(raw);
                         if (mKg.find()) {
                             kg = Double.parseDouble(mKg.group(1));
                             valid = true;
+                        } else {
+                            // 有些秤可能叫 weight
+                            Matcher mKg2 = Pattern.compile("weight[^\\d\\.\\-]+(-?\\d+\\.?\\d*)").matcher(raw);
+                            if (mKg2.find()) {
+                                kg = Double.parseDouble(mKg2.group(1));
+                                valid = true;
+                            }
                         }
-                        Matcher mStable = Pattern.compile("isStable[:\\s]+(true|false)").matcher(raw);
+                        Matcher mStable = Pattern.compile("isStable[^a-zA-Z]+(true|false)").matcher(raw);
                         if (mStable.find()) {
                             stable = "true".equals(mStable.group(1));
+                        } else {
+                            // 有些秤可能叫 stable
+                            Matcher mStable2 = Pattern.compile("stable[^a-zA-Z]+(true|false)").matcher(raw);
+                            if (mStable2.find()) {
+                                stable = "true".equals(mStable2.group(1));
+                            }
                         }
                         if (valid) {
                             Log.d(TAG, "weight[regex] netWeight=" + kg + " isStable=" + stable);
