@@ -45,6 +45,7 @@ android {
 dependencies {
     // 称重串口库（来自 WeightDemo）
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+    implementation("com.sunmi:printerlibrary:1.0.24")
 }
 
 flutter {

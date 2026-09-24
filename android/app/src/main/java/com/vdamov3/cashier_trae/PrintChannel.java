@@ -6,6 +6,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.hardware.usb.UsbDevice;
@@ -17,6 +18,10 @@ import android.util.Log;
 
 import com.caysn.autoreplyprint.AutoReplyPrint;
 import com.sun.jna.Pointer;
+import com.sunmi.peripheral.printer.InnerPrinterCallback;
+import com.sunmi.peripheral.printer.InnerPrinterManager;
+import com.sunmi.peripheral.printer.InnerResultCallback;
+import com.sunmi.peripheral.printer.SunmiPrinterService;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -24,12 +29,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 
 /**
- * 打印通道 — 使用 autoreplyprint AAR 的 USB 打印机。
+ * 打印通道 — 商米内置打印机或 autoreplyprint AAR 的 USB 打印机。
  * 泰文通过 Android Canvas 渲染成 Bitmap 再打印，绕过编码限制。
  * MethodChannel: "cashier/print"
  */
@@ -43,6 +51,24 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
 
     private Pointer hPrinter = Pointer.NULL;
     private final Context context;
+    private final boolean isSunmi = "SUNMI".equalsIgnoreCase(Build.MANUFACTURER);
+    private volatile SunmiPrinterService sunmiPrinter;
+    private volatile CountDownLatch sunmiReady = new CountDownLatch(1);
+    private boolean sunmiBound = false;
+    private final InnerPrinterCallback sunmiCallback = new InnerPrinterCallback() {
+        @Override
+        protected void onConnected(SunmiPrinterService service) {
+            sunmiPrinter = service;
+            sunmiReady.countDown();
+            Log.i(TAG, "SUNMI printer service connected");
+        }
+
+        @Override
+        protected void onDisconnected() {
+            sunmiPrinter = null;
+            Log.w(TAG, "SUNMI printer service disconnected");
+        }
+    };
 
     public PrintChannel(Context context) {
         this.context = context;
@@ -52,7 +78,10 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
     public void onMethodCall(MethodCall call, MethodChannel.Result result) {
         switch (call.method) {
             case "openPort":
-                result.success(openPort());
+                new Thread(() -> {
+                    boolean ok = openPort();
+                    new Handler(Looper.getMainLooper()).post(() -> result.success(ok));
+                }, "PrinterConnect").start();
                 break;
 
             case "closePort":
@@ -61,7 +90,9 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
                 break;
 
             case "isConnected":
-                result.success(AutoReplyPrint.INSTANCE.CP_Port_IsConnectionValid(hPrinter));
+                result.success(isSunmi
+                        ? sunmiPrinter != null && sunmiPrinter.asBinder().isBinderAlive()
+                        : AutoReplyPrint.INSTANCE.CP_Port_IsConnectionValid(hPrinter));
                 break;
 
             case "printTicket":
@@ -86,6 +117,7 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
     // ── 端口管理 ──────────────────────────────────────────────
 
     private synchronized boolean openPort() {
+        if (isSunmi) return openSunmiPort();
         if (AutoReplyPrint.INSTANCE.CP_Port_IsConnectionValid(hPrinter)) {
             return true;
         }
@@ -104,7 +136,37 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
         return opened;
     }
 
-    private void closePort() {
+    private boolean openSunmiPort() {
+        if (sunmiPrinter != null && sunmiPrinter.asBinder().isBinderAlive()) return true;
+        try {
+            if (sunmiBound) {
+                InnerPrinterManager.getInstance().unBindService(context, sunmiCallback);
+                sunmiBound = false;
+            }
+            sunmiReady = new CountDownLatch(1);
+            sunmiBound = InnerPrinterManager.getInstance().bindService(context, sunmiCallback);
+            if (!sunmiBound) return false;
+            return sunmiReady.await(5, TimeUnit.SECONDS)
+                    && sunmiPrinter != null && sunmiPrinter.asBinder().isBinderAlive();
+        } catch (Throwable e) {
+            Log.e(TAG, "SUNMI printer bind failed", e);
+            return false;
+        }
+    }
+
+    private synchronized void closePort() {
+        if (isSunmi) {
+            if (sunmiBound) {
+                try {
+                    InnerPrinterManager.getInstance().unBindService(context, sunmiCallback);
+                } catch (Throwable e) {
+                    Log.w(TAG, "SUNMI printer unbind failed", e);
+                }
+            }
+            sunmiBound = false;
+            sunmiPrinter = null;
+            return;
+        }
         if (hPrinter != Pointer.NULL) {
             AutoReplyPrint.INSTANCE.CP_Port_Close(hPrinter);
             hPrinter = Pointer.NULL;
@@ -162,6 +224,54 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
         if (bmp == null) {
             Log.e(TAG, "executePrint: renderTicket returned null");
             return false;
+        }
+        if (isSunmi) {
+            try {
+                SunmiPrinterService service = sunmiPrinter;
+                if (service == null) return false;
+                int state = service.updatePrinterState();
+                if (state != 1) {
+                    Log.w(TAG, "SUNMI printer not ready, state=" + state);
+                    return false;
+                }
+                CountDownLatch finished = new CountDownLatch(1);
+                AtomicBoolean printed = new AtomicBoolean(false);
+                InnerResultCallback callback = new InnerResultCallback() {
+                    @Override
+                    public void onRunResult(boolean success) {
+                        if (!success) finished.countDown();
+                    }
+
+                    @Override
+                    public void onReturnString(String value) {}
+
+                    @Override
+                    public void onRaiseException(int code, String message) {
+                        Log.e(TAG, "SUNMI print exception code=" + code + " message=" + message);
+                        finished.countDown();
+                    }
+
+                    @Override
+                    public void onPrintResult(int code, String message) {
+                        printed.set(code == 0);
+                        Log.i(TAG, "SUNMI print result code=" + code + " message=" + message);
+                        finished.countDown();
+                    }
+                };
+                service.enterPrinterBuffer(true);
+                service.printBitmap(bmp, null);
+                service.lineWrap(3, null);
+                service.exitPrinterBufferWithCallback(true, callback);
+                boolean completed = finished.await(15, TimeUnit.SECONDS);
+                Log.i(TAG, "SUNMI ticket completed=" + completed + " printed=" + printed.get()
+                        + " width=" + bmp.getWidth() + " height=" + bmp.getHeight());
+                return completed && printed.get();
+            } catch (Throwable e) {
+                Log.e(TAG, "SUNMI print failed", e);
+                return false;
+            } finally {
+                bmp.recycle();
+            }
         }
         // ② 打出位图尺寸，确认渲染结果
         Log.d(TAG, "executePrint: bitmap " + bmp.getWidth() + "x" + bmp.getHeight()
