@@ -2,7 +2,7 @@ name: cashier_trae
 description: "离线收银台 — 称重 + 打印泰文票据"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.10.7
@@ -16,7 +16,8 @@ dependencies:
   path: ^1.9.0             # 数据库路径
   shared_preferences: ^2.3.2  # 设置存储
   provider: ^6.1.5+1
-  presentation_displays: ^1.0.0
+  presentation_displays:
+    path: vendor/presentation_displays
 
 dev_dependencies:
   flutter_test:

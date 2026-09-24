@@ -26,7 +26,11 @@ class PrintService {
 
   /// 断开打印机
   Future<void> disconnect() async {
-    await _method.invokeMethod('closePort');
+    try {
+      await _method.invokeMethod('closePort');
+    } on PlatformException {
+      // 设备已断开时，仍要清理本地连接状态。
+    }
     _connected = false;
   }
 
@@ -44,12 +48,13 @@ class PrintService {
         if (!ok) return false;
       }
 
-      await _method.invokeMethod('printTicket', {
+      final result = await _method.invokeMethod<bool>('printTicket', {
         'shopName': shopName,
         'items': items.map((e) => e.toPrintMap()).toList(),
         'total': total,
       });
-      return true;
+      if (result != true) _connected = false;
+      return result == true;
     } on PlatformException {
       _connected = false;
       return false;

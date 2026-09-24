@@ -16,6 +16,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _pathCtrl = TextEditingController();
   final _rateCtrl = TextEditingController();
   final _shopCtrl = TextEditingController();
+  bool _printEnabled = true;
 
   @override
   void initState() {
@@ -25,25 +26,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     _pathCtrl.text = prefs.getString('serial_path') ?? '/dev/ttyS4';
     _rateCtrl.text = (prefs.getInt('serial_rate') ?? 9600).toString();
     _shopCtrl.text = prefs.getString('shop_name') ?? 'ร้านอาหาร';
+    setState(() => _printEnabled = prefs.getBool('print_enabled') ?? true);
   }
 
   Future<void> _save(LocaleProvider lp) async {
+    final path = _pathCtrl.text.trim();
+    final rate = int.tryParse(_rateCtrl.text.trim());
+    if (path.isEmpty || rate == null || rate <= 0) {
+      TopToast.show(context, lp.tr('invalid_serial_settings'), type: ToastType.error);
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('serial_path', _pathCtrl.text.trim());
-    await prefs.setInt('serial_rate', int.tryParse(_rateCtrl.text.trim()) ?? 9600);
+    await prefs.setString('serial_path', path);
+    await prefs.setInt('serial_rate', rate);
     await prefs.setString('shop_name', _shopCtrl.text.trim());
-    setState(() {});
+    await prefs.setBool('print_enabled', _printEnabled);
     if (!mounted) return;
     TopToast.show(context, lp.tr('settings_saved'), type: ToastType.success);
   }
 
   Future<void> _testScale(LocaleProvider lp) async {
-    final prefs = await SharedPreferences.getInstance();
-    final path = prefs.getString('serial_path') ?? '/dev/ttyS4';
-    final rate = prefs.getInt('serial_rate') ?? 9600;
+    final path = _pathCtrl.text.trim();
+    final rate = int.tryParse(_rateCtrl.text.trim());
+    if (path.isEmpty || rate == null || rate <= 0) {
+      TopToast.show(context, lp.tr('invalid_serial_settings'), type: ToastType.error);
+      return;
+    }
     final ok = await WeightService().open(path: path, rate: rate);
     if (!mounted) return;
     TopToast.show(
@@ -51,6 +63,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ok ? lp.tr('serial_success', args: {'path': path}) : lp.tr('serial_fail'),
       type: ok ? ToastType.success : ToastType.error,
     );
+  }
+
+  @override
+  void dispose() {
+    _pathCtrl.dispose();
+    _rateCtrl.dispose();
+    _shopCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -80,6 +100,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     filled: true,
                     fillColor: Colors.white,
                   ),
+                ),
+              ]),
+              const SizedBox(height: 24),
+              _Section(title: lp.tr('printer_settings'), children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(lp.tr('print_enabled')),
+                  subtitle: Text(lp.tr('print_enabled_hint')),
+                  value: _printEnabled,
+                  onChanged: (value) => setState(() => _printEnabled = value),
                 ),
               ]),
               const SizedBox(height: 24),

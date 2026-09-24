@@ -214,7 +214,9 @@ public class WeightChannel implements MethodChannel.MethodCallHandler, EventChan
         boolean isTare = ((state2 >> 5) & 1) == 1;
         boolean isOverWeight = (state1 == 'F') || (((state2 >> 6) & 1) == 1);
         boolean stable = state1 == 'S';
-        boolean valid = (state1 != 'F') && !isOverWeight;
+        // 价格按 kg 计算；其他单位不能直接当 kg 入单。
+        boolean valid = (state1 != 'F') && !isOverWeight
+                && "kg".equalsIgnoreCase(unit.trim());
 
         StringBuilder sb = new StringBuilder();
         for (byte b : frame) sb.append(String.format("%02X", b & 0xFF));

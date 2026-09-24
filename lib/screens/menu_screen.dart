@@ -126,7 +126,7 @@ class _MenuScreenState extends State<MenuScreen> {
                                 title: Text(lp.tr('weighing_scale_pricing'), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                                 value: isByWeight,
                                 onChanged: (v) => setDlg(() => isByWeight = v),
-                                activeColor: const Color(0xFF0284C7),
+                                activeThumbColor: const Color(0xFF0284C7),
                               ),
                             ),
                           ],
@@ -184,6 +184,7 @@ class _MenuScreenState extends State<MenuScreen> {
     } else {
       await _db.updateMenuItem(saved);
     }
+    if (!mounted) return;
     TopToast.show(context, lp.tr('save_success'), type: ToastType.success);
     await _load();
   }
@@ -242,11 +243,11 @@ class _MenuScreenState extends State<MenuScreen> {
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.white, width: 1),
                     boxShadow: [
-                      BoxShadow(color: const Color(0xFF0F172A).withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+                      BoxShadow(color: const Color(0xFF0F172A).withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
                     ],
                   ),
                   child: Material(
@@ -284,7 +285,7 @@ class _MenuScreenState extends State<MenuScreen> {
                                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF1E293B)),
                                   ),
                                   if (item.nameCn.isNotEmpty)
-                                    Text(item.nameCn, style: TextStyle(fontSize: 13, color: const Color(0xFF64748B).withOpacity(0.7), fontWeight: FontWeight.w500)),
+                                    Text(item.nameCn, style: TextStyle(fontSize: 13, color: const Color(0xFF64748B).withValues(alpha: 0.7), fontWeight: FontWeight.w500)),
                                 ],
                               ),
                             ),
@@ -345,7 +346,7 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,

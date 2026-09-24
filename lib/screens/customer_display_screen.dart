@@ -110,7 +110,7 @@ class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
                         : ListView.separated(
                             padding: const EdgeInsets.all(16),
                             itemCount: _cartItems.length,
-                            separatorBuilder: (_, __) => const Padding(
+                            separatorBuilder: (_, _) => const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
                               child: Divider(color: Color(0xFFCBD5E1), thickness: 1.5),
                             ),

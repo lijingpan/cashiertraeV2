@@ -34,9 +34,13 @@ class _CashierScreenState extends State<CashierScreen> {
   bool _weightValid = false;
   bool _scaleConnected = false;
   StreamSubscription<WeightData>? _weightSub;
+  Timer? _weightWatchdog;
+  DateTime? _lastWeightAt;
 
   MenuItem? _selectedItem;
   bool _printerConnected = false;
+  bool _printEnabled = true;
+  bool _printing = false;
   int _fixedQty = 1;
 
   final DisplayManager _displayManager = DisplayManager();
@@ -46,8 +50,20 @@ class _CashierScreenState extends State<CashierScreen> {
   void initState() {
     super.initState();
     _loadMenu();
+    _loadPrintSetting();
     _connectScale();
-    _connectPrinter();
+    _weightWatchdog = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_lastWeightAt != null &&
+          DateTime.now().difference(_lastWeightAt!) > const Duration(seconds: 3)) {
+        setState(() {
+          _weightValid = false;
+          _weightStable = false;
+          _currentKg = 0;
+          _scaleConnected = false;
+        });
+        _lastWeightAt = null;
+      }
+    });
     _setupSecondaryDisplay();
   }
 
@@ -92,33 +108,70 @@ class _CashierScreenState extends State<CashierScreen> {
   @override
   void dispose() {
     _weightSub?.cancel();
+    _weightWatchdog?.cancel();
     _weight.close();
     super.dispose();
   }
 
   Future<void> _loadMenu() async {
     final items = await _db.getMenuItems();
-    setState(() => _menuItems = items);
+    if (mounted) setState(() => _menuItems = items);
+  }
+
+  Future<void> _loadPrintSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final enabled = prefs.getBool('print_enabled') ?? true;
+    setState(() => _printEnabled = enabled);
+    if (enabled) {
+      _connectPrinter();
+    } else {
+      await _print.disconnect();
+      if (!mounted) return;
+      setState(() => _printerConnected = false);
+    }
   }
 
   Future<void> _connectScale() async {
+    await _weightSub?.cancel();
+    _weightSub = null;
+    _lastWeightAt = null;
+    if (mounted) {
+      setState(() {
+        _scaleConnected = false;
+        _weightValid = false;
+        _weightStable = false;
+        _currentKg = 0;
+      });
+    }
     final ok = await _weight.open();
     if (!mounted) return;
     setState(() => _scaleConnected = ok);
     if (ok) {
       _weightSub = _weight.weightStream.listen((data) {
+        if (!mounted) return;
+        _lastWeightAt = DateTime.now();
         setState(() {
+          _scaleConnected = true;
           _currentKg = data.kg;
           _weightStable = data.stable;
-          _weightValid = data.kg > 0;
+          _weightValid = data.canSell;
         });
+      }, onError: (_) {
+        if (mounted) {
+          setState(() {
+            _scaleConnected = false;
+            _weightValid = false;
+          });
+        }
       });
     }
   }
 
   Future<void> _connectPrinter() async {
+    if (!_printEnabled) return;
     final ok = await _print.connect();
-    if (!mounted) return;
+    if (!mounted || !_printEnabled) return;
     setState(() => _printerConnected = ok);
   }
 
@@ -130,14 +183,14 @@ class _CashierScreenState extends State<CashierScreen> {
   }
 
   void _addToCart(LocaleProvider lp) {
-    if (_selectedItem == null) return;
+    if (_selectedItem == null || _printing) return;
     final item = _selectedItem!;
 
     double qty;
     double subtotal;
 
     if (item.isByWeight) {
-      if (!_weightValid || _currentKg <= 0) {
+      if (!_weightValid || !_scaleConnected || _currentKg <= 0) {
         _showSnack(lp.tr('pls_put_on_scale'), type: ToastType.error);
         return;
       }
@@ -156,11 +209,13 @@ class _CashierScreenState extends State<CashierScreen> {
   }
 
   void _removeCartItem(int index) {
+    if (_printing) return;
     setState(() => _cart.removeAt(index));
     _syncCartToSecondaryDisplay();
   }
 
   void _clearCart() {
+    if (_printing) return;
     setState(() {
       _cart.clear();
       _selectedItem = null;
@@ -171,22 +226,36 @@ class _CashierScreenState extends State<CashierScreen> {
   double get _total => _cart.fold(0.0, (sum, e) => sum + e.subtotal);
 
   Future<void> _printReceipt(LocaleProvider lp) async {
+    if (_printing) return;
     if (_cart.isEmpty) {
       _showSnack(lp.tr('cart_empty'));
       return;
     }
+    if (!_printEnabled) {
+      _clearCart();
+      _showSnack(lp.tr('sale_complete'), type: ToastType.success);
+      return;
+    }
+    setState(() => _printing = true);
     _showSnack(lp.tr('printing'));
-    
-    final prefs = await SharedPreferences.getInstance();
-    final shopName = prefs.getString('shop_name') ?? 'ร้านอาหาร';
 
-    final ok = await _print.printTicket(
-      shopName: shopName,
-      items: _cart,
-      total: _total,
-    );
+    bool ok;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final shopName = prefs.getString('shop_name') ?? 'ร้านอาหาร';
+      ok = await _print.printTicket(
+        shopName: shopName,
+        items: _cart,
+        total: _total,
+      );
+    } catch (_) {
+      ok = false;
+    }
     if (!mounted) return;
-    setState(() => _printerConnected = ok || _printerConnected);
+    setState(() {
+      _printing = false;
+      _printerConnected = ok;
+    });
     _showSnack(
       lp.tr(ok ? 'print_success' : 'print_fail'),
       type: ok ? ToastType.success : ToastType.error,
@@ -238,7 +307,7 @@ class _CashierScreenState extends State<CashierScreen> {
           icon: Icons.print_rounded,
           label: lp.tr('printer'),
           connected: _printerConnected,
-          onTap: _connectPrinter,
+          onTap: _printEnabled ? _connectPrinter : null,
         ),
         const SizedBox(width: 16),
         Container(
@@ -275,7 +344,11 @@ class _CashierScreenState extends State<CashierScreen> {
         IconButton(
           icon: const Icon(Icons.settings_rounded),
           tooltip: lp.tr('settings'),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          onPressed: () async {
+            await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            _loadPrintSetting();
+            _connectScale();
+          },
         ),
         const SizedBox(width: 8),
       ],
@@ -363,7 +436,7 @@ class _CashierScreenState extends State<CashierScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. 顶部始终显示当前称重状态 (Always show the live scale weight)
-          _WeightDisplay(kg: _currentKg, valid: _scaleConnected, stable: _weightStable, lp: lp),
+          _WeightDisplay(kg: _currentKg, valid: _scaleConnected && _weightValid, stable: _weightStable, lp: lp),
           const SizedBox(height: 16),
           // Removed tare and zero buttons per user request
           const SizedBox(height: 8),
@@ -394,7 +467,7 @@ class _CashierScreenState extends State<CashierScreen> {
                         if (_selectedItem!.nameCn.isNotEmpty)
                           Text(
                             _selectedItem!.nameCn,
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF64748B).withOpacity(0.8)),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF64748B).withValues(alpha: 0.8)),
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],
@@ -495,7 +568,7 @@ class _CashierScreenState extends State<CashierScreen> {
                   children: [
                     Text(item.menuItem.nameTh, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A), height: 1.1)),
                     if (item.menuItem.nameCn.isNotEmpty)
-                      Text(item.menuItem.nameCn, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF64748B).withOpacity(0.7))),
+                      Text(item.menuItem.nameCn, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF64748B).withValues(alpha: 0.7))),
                     const SizedBox(height: 8),
                     RichText(
                       text: TextSpan(
@@ -567,14 +640,14 @@ class _CashierScreenState extends State<CashierScreen> {
               Expanded(
                 child: FilledButton.icon(
                   icon: const Icon(Icons.receipt_long_rounded, size: 28),
-                  label: Text(lp.tr('print_ticket'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  label: Text(lp.tr(_printEnabled ? 'print_ticket' : 'finish_sale'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF0EA5E9), // Sky 500
                     padding: const EdgeInsets.symmetric(vertical: 22),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     elevation: 0,
                   ),
-                  onPressed: _cart.isEmpty ? null : () => _printReceipt(lp),
+                  onPressed: _cart.isEmpty || _printing ? null : () => _printReceipt(lp),
                 ),
               ),
             ],
@@ -634,7 +707,7 @@ class _MenuCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: (item.isByWeight ? const Color(0xFF0EA5E9) : const Color(0xFFF59E0B)).withOpacity(0.15),
+                            color: (item.isByWeight ? const Color(0xFF0EA5E9) : const Color(0xFFF59E0B)).withValues(alpha: 0.15),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           )
@@ -671,7 +744,7 @@ class _MenuCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: selected ? Colors.white.withOpacity(0.2) : const Color(0xFFF1F5F9),
+                    color: selected ? Colors.white.withValues(alpha: 0.2) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -766,7 +839,7 @@ class _StatusChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool connected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _StatusChip({required this.icon, required this.label, required this.connected, required this.onTap});
 

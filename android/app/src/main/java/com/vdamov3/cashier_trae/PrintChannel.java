@@ -6,6 +6,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Looper;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.text.Layout;
@@ -68,15 +70,12 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
                     boolean ok = false;
                     try {
                         ok = executePrint(call);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         Log.e(TAG, "Print exception", e);
                     }
                     final boolean finalOk = ok;
-                    // result 已经在上面 success/error，这里只记录日志
-                    Log.d(TAG, "Print result: " + finalOk);
+                    new Handler(Looper.getMainLooper()).post(() -> result.success(finalOk));
                 }).start();
-                // 立即返回 true，打印在后台完成
-                result.success(true);
                 break;
 
             default:

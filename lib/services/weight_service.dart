@@ -25,8 +25,12 @@ class WeightService {
     final prefs = await SharedPreferences.getInstance();
     final p = path ?? prefs.getString('serial_path') ?? '/dev/ttyS4';
     final r = rate ?? prefs.getInt('serial_rate') ?? 9600;
-    final result = await _method.invokeMethod<bool>('open', {'path': p, 'rate': r});
-    return result ?? false;
+    try {
+      final result = await _method.invokeMethod<bool>('open', {'path': p, 'rate': r});
+      return result ?? false;
+    } on PlatformException {
+      return false;
+    }
   }
 
   /// 关闭串口
@@ -65,6 +69,8 @@ class WeightData {
     required this.stable,
     required this.valid,
   });
+
+  bool get canSell => valid && stable && kg.isFinite && kg > 0;
 
   factory WeightData.fromMap(Map<String, dynamic> m) {
     double tempKg = 0.0;

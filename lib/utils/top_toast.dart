@@ -116,7 +116,6 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
         iconColor = const Color(0xFFDC2626);
         break;
       case ToastType.info:
-      default:
         bgColor = const Color(0xFFF1F5F9);
         icon = Icons.info_rounded;
         iconColor = const Color(0xFF0284C7);
@@ -143,17 +142,17 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                         decoration: BoxDecoration(
-                          color: bgColor.withOpacity(0.7),
+                          color: bgColor.withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 12,
                               offset: const Offset(0, 6),
                             ),
                           ],
                           border: Border.all(
-                            color: iconColor.withOpacity(0.15),
+                            color: iconColor.withValues(alpha: 0.15),
                             width: 1,
                           ),
                         ),
