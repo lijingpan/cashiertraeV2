@@ -38,7 +38,7 @@ class WeightService {
     await _method.invokeMethod('close');
   }
 
-  /// 去皮（置零）
+  /// 扣除容器重量。
   Future<bool> tare() async {
     final result = await _method.invokeMethod<bool>('tare');
     return result ?? false;
@@ -62,12 +62,18 @@ class WeightData {
   final double kg;     // 净重 kg
   final bool stable;   // 是否稳定
   final bool valid;    // 是否有效数值
+  final bool isZero;
+  final bool isTare;
+  final String unit;
 
   const WeightData({
     required this.raw,
     required this.kg,
     required this.stable,
     required this.valid,
+    this.isZero = false,
+    this.isTare = false,
+    this.unit = 'kg',
   });
 
   bool get canSell => valid && stable && kg.isFinite && kg > 0;
@@ -85,6 +91,9 @@ class WeightData {
       kg: tempKg,
       stable: m['stable'] as bool? ?? m['isStable'] as bool? ?? false,
       valid: m['valid'] as bool? ?? m['isStable'] as bool? ?? false,
+      isZero: m['isZero'] as bool? ?? false,
+      isTare: m['isTare'] as bool? ?? false,
+      unit: (m['unit'] as String? ?? 'kg').trim(),
     );
   }
 

@@ -22,4 +22,15 @@ void main() {
     expect(frame.kg, 0.75);
     expect(frame.canSell, isTrue);
   });
+
+  test('Android scale flags report tare and zero separately from sellable weight', () {
+    final frame = WeightData.fromMap({
+      'raw': 'frame', 'kg': 0.0, 'stable': true, 'valid': true,
+      'isZero': true, 'isTare': true, 'unit': 'kg',
+    });
+    expect(frame.isZero, isTrue);
+    expect(frame.isTare, isTrue);
+    expect(frame.unit, 'kg');
+    expect(frame.canSell, isFalse);
+  });
 }

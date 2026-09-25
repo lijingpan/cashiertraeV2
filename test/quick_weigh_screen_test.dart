@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cashier_trae/l10n/locale_provider.dart';
+import 'package:cashier_trae/models/menu_item.dart';
 import 'package:cashier_trae/screens/cashier_screen.dart';
 import 'package:cashier_trae/services/db_service.dart';
 import 'package:flutter/material.dart';
@@ -58,14 +59,18 @@ void main() {
       expect(find.text('Weighing Item'), findsWidgets);
       expect(find.text('Unit price'), findsOneWidget);
       expect(find.text('Item total'), findsOneWidget);
+      expect(find.text('7'), findsOneWidget);
+      expect(find.text('Tare'), findsNothing);
+      expect(find.text('Zero'), findsNothing);
+      expect(tester.getTopLeft(find.text('Cart is empty')).dy,
+          greaterThan(tester.getTopLeft(find.text('Unit price')).dy));
       final priceField = tester.widget<TextField>(find.byType(TextField).first);
       expect(priceField.controller!.text, '2.50');
+      expect(find.byType(AlertDialog), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.dialpad_rounded));
-      await tester.pumpAndSettle();
+      await tester.tap(find.text('Weighing Item').first);
       await tester.tap(find.widgetWithText(FilledButton, '5'));
       await tester.tap(find.widgetWithText(FilledButton, '0'));
-      await tester.tap(find.widgetWithText(FilledButton, 'Done'));
       await tester.pumpAndSettle();
       expect(priceField.controller!.text, '50');
 
@@ -73,6 +78,28 @@ void main() {
       await tester.pump();
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getDouble('default_weight_price'), 50);
+      tester.view.physicalSize = const Size(1280, 800);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      await tester.runAsync(() => DbService().insertMenuItem(const MenuItem(
+        nameEn: 'Test Item', price: 9, isByWeight: false,
+      )));
+      await tester.tap(find.byTooltip('Manage Menu'));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Test Item').first);
+      await tester.pump();
+      expect(priceField.controller!.text, '9.00');
+      await tester.tap(find.widgetWithText(FilledButton, '5'));
+      await tester.pump();
+      expect(priceField.controller!.text, '5');
+      await tester.tap(find.text('Add to Cart'));
+      await tester.pump();
+      expect(find.text('฿ 5.00'), findsWidgets);
+
       await tester.pump(const Duration(seconds: 3));
     } finally {
       await tester.pumpWidget(const SizedBox());

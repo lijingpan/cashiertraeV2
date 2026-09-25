@@ -33,6 +33,9 @@ class _CashierScreenState extends State<CashierScreen> {
   double _currentKg = 0.0;
   bool _weightStable = false;
   bool _weightValid = false;
+  bool _weightIsZero = false;
+  bool _weightIsTare = false;
+  bool _scaleControlAvailable = false;
   bool _scaleConnected = false;
   StreamSubscription<WeightData>? _weightSub;
   Timer? _weightWatchdog;
@@ -42,6 +45,7 @@ class _CashierScreenState extends State<CashierScreen> {
   final _priceCtrl = TextEditingController(text: '1.00');
   double _defaultPrice = 1;
   double _enteredPrice = 1;
+  bool _keypadReplaceOnNext = true;
   bool _printerConnected = false;
   bool _printEnabled = true;
   bool _printing = false;
@@ -75,6 +79,9 @@ class _CashierScreenState extends State<CashierScreen> {
         setState(() {
           _weightValid = false;
           _weightStable = false;
+          _weightIsZero = false;
+          _weightIsTare = false;
+          _scaleControlAvailable = false;
           _currentKg = 0;
           _scaleConnected = false;
         });
@@ -158,6 +165,7 @@ class _CashierScreenState extends State<CashierScreen> {
       _selectedItem = next;
       _fixedQty = 1;
       _setPriceText(next.isQuickWeigh ? _defaultPrice : next.price);
+      _keypadReplaceOnNext = true;
     });
   }
 
@@ -169,6 +177,7 @@ class _CashierScreenState extends State<CashierScreen> {
       _defaultPrice = saved;
       if (_selectedItem == null || _selectedItem!.isQuickWeigh) {
         _setPriceText(saved);
+        _keypadReplaceOnNext = true;
       }
     });
   }
@@ -194,91 +203,29 @@ class _CashierScreenState extends State<CashierScreen> {
     _showSnack(lp.tr('default_price_saved'), type: ToastType.success);
   }
 
-  Future<void> _showPriceKeypad(LocaleProvider lp) async {
-    var input = _priceCtrl.text;
-    var replaceOnNext = true;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, refreshDialog) {
-          void press(String key) {
-            if (key == 'C') {
-              input = '';
-            } else if (key == '⌫') {
-              input = input.isEmpty ? '' : input.substring(0, input.length - 1);
-            } else {
-              final next = replaceOnNext
-                  ? (key == '.' ? '0.' : key)
-                  : input + key;
-              if (!RegExp(r'^\d{0,7}(\.\d{0,2})?$').hasMatch(next)) return;
-              input = next;
-            }
-            replaceOnNext = false;
-            refreshDialog(() {});
-            _priceCtrl.text = input;
-            if (mounted) {
-              setState(() => _enteredPrice = double.tryParse(input) ?? 0);
-            }
-          }
-
-          return AlertDialog(
-            title: Text(lp.tr('unit_price')),
-            content: SizedBox(
-              width: 360,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text('฿ ${input.isEmpty ? '0' : input}',
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold)),
-                      ),
-                      IconButton(
-                        tooltip: lp.tr('clear'),
-                        onPressed: () => press('C'),
-                        icon: const Icon(Icons.clear_rounded),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 1.8,
-                    children: [
-                      for (final key in const ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '⌫'])
-                        FilledButton.tonal(
-                          onPressed: () => press(key),
-                          child: Text(key, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              if (_selectedItem?.isQuickWeigh ?? false)
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                    _saveDefaultPrice(lp);
-                  },
-                  child: Text(lp.tr('save_default_price')),
-                ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(lp.tr('done')),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+  void _pressPriceKey(String key) {
+    final current = _priceCtrl.text;
+    String next;
+    if (key == 'C') {
+      next = '';
+    } else if (key == '⌫') {
+      next = current.isEmpty ? '' : current.substring(0, current.length - 1);
+    } else if (_keypadReplaceOnNext) {
+      next = key == '.' ? '0.' : key;
+    } else if (current == '0' && key != '.') {
+      next = key;
+    } else {
+      next = current + key;
+    }
+    if (!RegExp(r'^\d{0,7}(\.\d{0,2})?$').hasMatch(next)) return;
+    setState(() {
+      _keypadReplaceOnNext = false;
+      _enteredPrice = double.tryParse(next) ?? 0;
+      _priceCtrl.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+    });
   }
 
   Future<void> _loadPrintSetting() async {
@@ -304,6 +251,9 @@ class _CashierScreenState extends State<CashierScreen> {
         _scaleConnected = false;
         _weightValid = false;
         _weightStable = false;
+        _weightIsZero = false;
+        _weightIsTare = false;
+        _scaleControlAvailable = false;
         _currentKg = 0;
       });
     }
@@ -319,12 +269,19 @@ class _CashierScreenState extends State<CashierScreen> {
           _currentKg = data.kg;
           _weightStable = data.stable;
           _weightValid = data.canSell;
+          _weightIsZero = data.isZero;
+          _weightIsTare = data.isTare;
+          _scaleControlAvailable = data.valid && data.unit.toLowerCase() == 'kg';
         });
       }, onError: (_) {
         if (mounted) {
           setState(() {
             _scaleConnected = false;
             _weightValid = false;
+            _weightStable = false;
+            _weightIsZero = false;
+            _weightIsTare = false;
+            _scaleControlAvailable = false;
           });
         }
       });
@@ -338,11 +295,30 @@ class _CashierScreenState extends State<CashierScreen> {
     setState(() => _printerConnected = ok);
   }
 
+  Future<void> _sendScaleCommand(LocaleProvider lp, {required bool tare}) async {
+    if (!_scaleConnected || !_weightStable) {
+      _showSnack(lp.tr('wait_for_stable_scale'), type: ToastType.error);
+      return;
+    }
+    bool sent;
+    try {
+      sent = tare ? await _weight.tare() : await _weight.zero();
+    } on PlatformException {
+      sent = false;
+    }
+    if (!mounted) return;
+    _showSnack(
+      lp.tr(sent ? 'scale_command_sent' : 'scale_command_failed'),
+      type: sent ? ToastType.success : ToastType.error,
+    );
+  }
+
   void _selectMenuItem(MenuItem item) {
     setState(() {
       _selectedItem = item;
       _fixedQty = 1;
       _setPriceText(item.isQuickWeigh ? _defaultPrice : item.price);
+      _keypadReplaceOnNext = true;
     });
   }
 
@@ -387,6 +363,7 @@ class _CashierScreenState extends State<CashierScreen> {
     if (_printing) return;
     setState(() {
       _cart.clear();
+      _keypadReplaceOnNext = true;
     });
     _syncCartToSecondaryDisplay();
   }
@@ -452,12 +429,20 @@ class _CashierScreenState extends State<CashierScreen> {
       appBar: _buildAppBar(lp),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
           children: [
-            Expanded(flex: 13, child: _buildMenuPanel(lp)),
-            const SizedBox(width: 12),
-            Expanded(flex: 9, child: _buildRightPanel(lp)),
+            Expanded(
+              flex: 7,
+              child: Row(children: [
+                Expanded(flex: 3, child: _buildMenuPanel(lp)),
+                const SizedBox(width: 12),
+                Expanded(flex: 4, child: _buildWeightSection(lp)),
+                const SizedBox(width: 12),
+                Expanded(flex: 3, child: _buildKeypadPanel(lp)),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Expanded(flex: 3, child: _buildCartPanel(lp)),
           ],
         ),
       ),
@@ -550,11 +535,11 @@ class _CashierScreenState extends State<CashierScreen> {
           behavior: const ScrollBehavior().copyWith(scrollbars: false),
           child: GridView.builder(
             padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.95,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 250,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.15,
             ),
             itemCount: visibleItems.length,
             itemBuilder: (_, i) => _MenuCard(
@@ -569,27 +554,75 @@ class _CashierScreenState extends State<CashierScreen> {
     );
   }
 
-  Widget _buildRightPanel(LocaleProvider lp) {
-    return Column(
-      children: [
-        _buildWeightSection(lp),
-        const SizedBox(height: 12),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 4))],
-            ),
-            child: Column(
-              children: [
-                Expanded(child: _buildCartList(lp)),
-                _buildBottomBar(lp),
-              ],
-            ),
+  Widget _buildCartPanel(LocaleProvider lp) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 4))],
+      ),
+      child: Column(
+        children: [
+          Expanded(child: _buildCartList(lp)),
+          _buildBottomBar(lp),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeypadPanel(LocaleProvider lp) {
+    const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '⌫'];
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 4))],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        Row(children: [
+          Expanded(
+            child: Text(lp.tr('number_keypad'),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A))),
           ),
+          TextButton.icon(
+            onPressed: () => _pressPriceKey('C'),
+            icon: const Icon(Icons.backspace_outlined),
+            label: Text(lp.tr('clear')),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Expanded(
+          child: LayoutBuilder(builder: (context, constraints) {
+            final keyWidth = (constraints.maxWidth - 16) / 3;
+            final keyHeight = (constraints.maxHeight - 24) / 4;
+            return GridView.count(
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: keyWidth / keyHeight,
+              children: [
+                for (final key in keys)
+                  FilledButton.tonal(
+                    onPressed: () => _pressPriceKey(key),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: key == '⌫'
+                          ? const Color(0xFFFFEDD5) : const Color(0xFFE0F2FE),
+                      foregroundColor: const Color(0xFF0F172A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(key,
+                        style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w800,
+                            fontFeatures: [FontFeature.tabularFigures()])),
+                  ),
+              ],
+            );
+          }),
         ),
-      ],
+      ]),
     );
   }
 
@@ -601,15 +634,35 @@ class _CashierScreenState extends State<CashierScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 4))],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 1. 顶部始终显示当前称重状态 (Always show the live scale weight)
           _WeightDisplay(kg: _currentKg, valid: _scaleConnected && _weightValid, stable: _weightStable, lp: lp),
-          const SizedBox(height: 16),
-          // Removed tare and zero buttons per user request
+          if (_scaleControlAvailable) ...[
           const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(
+              onPressed: _scaleConnected && _weightStable
+                  ? () => _sendScaleCommand(lp, tare: true) : null,
+              icon: const Icon(Icons.layers_clear_rounded),
+              label: Text(lp.tr('tare')),
+            )),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton.icon(
+              onPressed: _scaleConnected && _weightStable
+                  ? () => _sendScaleCommand(lp, tare: false) : null,
+              icon: const Icon(Icons.restart_alt_rounded),
+              label: Text(lp.tr('zero')),
+            )),
+            if (_weightIsTare || _weightIsZero) ...[
+              const SizedBox(width: 8),
+              Text(lp.tr(_weightIsTare ? 'tare_active' : 'zero_active'),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF166534))),
+            ],
+          ]),
+          ],
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 8),
 
@@ -645,10 +698,9 @@ class _CashierScreenState extends State<CashierScreen> {
               Expanded(
                 child: TextField(
                   controller: _priceCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [TextInputFormatter.withFunction((oldValue, newValue) =>
-                      RegExp(r'^\d{0,7}(\.\d{0,2})?$').hasMatch(newValue.text)
-                          ? newValue : oldValue)],
+                  readOnly: true,
+                  showCursor: false,
+                  enableInteractiveSelection: false,
                   decoration: InputDecoration(
                     labelText: lp.tr('unit_price'),
                     prefixText: '฿ ',
@@ -656,14 +708,7 @@ class _CashierScreenState extends State<CashierScreen> {
                     border: const OutlineInputBorder(),
                     isDense: true,
                   ),
-                  onChanged: (value) => setState(() =>
-                      _enteredPrice = double.tryParse(value) ?? 0),
                 ),
-              ),
-              IconButton.filledTonal(
-                tooltip: lp.tr('number_keypad'),
-                icon: const Icon(Icons.dialpad_rounded),
-                onPressed: () => _showPriceKeypad(lp),
               ),
               if (_selectedItem!.isQuickWeigh)
                 TextButton(
@@ -718,7 +763,7 @@ class _CashierScreenState extends State<CashierScreen> {
               ),
               _QtyButton(icon: Icons.add_rounded, onPressed: () => setState(() => _fixedQty = (_fixedQty + 1).clamp(1, 99))),
             ]),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -726,7 +771,7 @@ class _CashierScreenState extends State<CashierScreen> {
                 label: Text(lp.tr('add_to_cart'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
-                  padding: const EdgeInsets.symmetric(vertical: 22),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
                 onPressed: () => _addToCart(lp),
@@ -815,47 +860,43 @@ class _CashierScreenState extends State<CashierScreen> {
         color: Color(0xFFF8FAFC),
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-      child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Expanded(child: Row(
             children: [
               Text(lp.tr('total').toUpperCase(), style: const TextStyle(color: Color(0xFF64748B), fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 20),
               Text(
                 '฿ ${_total.toStringAsFixed(2)}',
                 style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)), // Sky 600
               ),
             ],
+          )),
+          TextButton.icon(
+            icon: const Icon(Icons.delete_sweep_rounded, size: 24),
+            label: Text(lp.tr('clear'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFEF4444),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            ),
+            onPressed: _cart.isEmpty ? null : _clearCart,
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              TextButton.icon(
-                icon: const Icon(Icons.delete_sweep_rounded, size: 24),
-                label: Text(lp.tr('clear'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFEF4444),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                ),
-                onPressed: _cart.isEmpty ? null : _clearCart,
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 300,
+            child: FilledButton.icon(
+              icon: const Icon(Icons.receipt_long_rounded, size: 28),
+              label: Text(lp.tr(_printEnabled ? 'print_ticket' : 'finish_sale'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0EA5E9),
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                elevation: 0,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.receipt_long_rounded, size: 28),
-                  label: Text(lp.tr(_printEnabled ? 'print_ticket' : 'finish_sale'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF0EA5E9), // Sky 500
-                    padding: const EdgeInsets.symmetric(vertical: 22),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    elevation: 0,
-                  ),
-                  onPressed: _cart.isEmpty || _printing ? null : () => _printReceipt(lp),
-                ),
-              ),
-            ],
+              onPressed: _cart.isEmpty || _printing ? null : () => _printReceipt(lp),
+            ),
           ),
         ],
       ),
@@ -974,7 +1015,7 @@ class _WeightDisplay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: valid ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9), // Green 100 or Slate 100
         borderRadius: BorderRadius.circular(20),
@@ -985,14 +1026,19 @@ class _WeightDisplay extends StatelessWidget {
         children: [
           Icon(Icons.scale_rounded, color: valid ? const Color(0xFF16A34A) : const Color(0xFF94A3B8), size: 44),
           const SizedBox(width: 20),
-          Text(
-            '${kg.toStringAsFixed(3)} kg',
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-              color: valid ? const Color(0xFF166534) : const Color(0xFF64748B),
-              fontFeatures: const [FontFeature.tabularFigures()],
-              letterSpacing: -1.0,
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '${kg.toStringAsFixed(3)} kg',
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                  color: valid ? const Color(0xFF166534) : const Color(0xFF64748B),
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  letterSpacing: -1.0,
+                ),
+              ),
             ),
           ),
           if (valid && stable) ...[
@@ -1020,8 +1066,8 @@ class _QtyButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          width: 64,
-          height: 64,
+          width: 48,
+          height: 48,
           alignment: Alignment.center,
           child: Icon(icon, size: 32, color: const Color(0xFF0F172A)),
         ),

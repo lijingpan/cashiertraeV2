@@ -310,16 +310,20 @@ class _MenuScreenState extends State<MenuScreen> {
                             ),
                             const SizedBox(width: 24),
                             SizedBox(
-                              width: 100,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.baseline,
-                                textBaseline: TextBaseline.alphabetic,
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  const Text('฿', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0284C7))),
-                                  const SizedBox(width: 2),
-                                  Text(item.price.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A), letterSpacing: -0.5)),
-                                ],
+                              width: 130,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  textBaseline: TextBaseline.alphabetic,
+                                  children: [
+                                    const Text('฿', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0284C7))),
+                                    const SizedBox(width: 2),
+                                    Text(item.price.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A), letterSpacing: -0.5)),
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(width: 24),
