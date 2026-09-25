@@ -35,7 +35,7 @@ class PrintService {
   }
 
   /// 打印收据
-  /// [shopName] 店名（泰文），[items] 购物车，[total] 总金额
+  /// [shopName] 当前语言的店名，[items] 购物车，[total] 总金额
   Future<bool> printTicket({
     required String shopName,
     required List<CartItem> items,

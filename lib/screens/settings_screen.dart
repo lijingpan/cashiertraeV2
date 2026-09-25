@@ -16,6 +16,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _pathCtrl = TextEditingController();
   final _rateCtrl = TextEditingController();
   final _shopCtrl = TextEditingController();
+  final _defaultPriceCtrl = TextEditingController();
   bool _printEnabled = true;
 
   @override
@@ -31,20 +32,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _rateCtrl.text = (prefs.getInt('serial_rate') ?? 9600).toString();
     final savedShopName = prefs.getString('shop_name');
     _shopCtrl.text = savedShopName == 'ร้านอาหาร' ? '' : savedShopName ?? '';
+    _defaultPriceCtrl.text = (prefs.getDouble('default_weight_price') ?? 1).toStringAsFixed(2);
     setState(() => _printEnabled = prefs.getBool('print_enabled') ?? true);
   }
 
   Future<void> _save(LocaleProvider lp) async {
     final path = _pathCtrl.text.trim();
     final rate = int.tryParse(_rateCtrl.text.trim());
+    final defaultPrice = double.tryParse(_defaultPriceCtrl.text.trim());
     if (path.isEmpty || rate == null || rate <= 0) {
       TopToast.show(context, lp.tr('invalid_serial_settings'), type: ToastType.error);
+      return;
+    }
+    if (defaultPrice == null || !defaultPrice.isFinite || defaultPrice <= 0) {
+      TopToast.show(context, lp.tr('enter_positive_price'), type: ToastType.error);
       return;
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('serial_path', path);
     await prefs.setInt('serial_rate', rate);
     await prefs.setString('shop_name', _shopCtrl.text.trim());
+    await prefs.setDouble('default_weight_price', defaultPrice);
     await prefs.setBool('print_enabled', _printEnabled);
     if (!mounted) return;
     TopToast.show(context, lp.tr('settings_saved'), type: ToastType.success);
@@ -71,6 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _pathCtrl.dispose();
     _rateCtrl.dispose();
     _shopCtrl.dispose();
+    _defaultPriceCtrl.dispose();
     super.dispose();
   }
 
@@ -98,6 +107,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   decoration: InputDecoration(
                     labelText: lp.tr('shop_name'),
                     hintText: lp.tr('default_shop_name'),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 24),
+              _Section(title: lp.tr('default_price'), children: [
+                TextField(
+                  controller: _defaultPriceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: lp.tr('price_kg'),
+                    prefixText: '฿ ',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: Colors.white,

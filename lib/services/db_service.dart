@@ -52,13 +52,7 @@ class DbService {
       await db.rawQuery('SELECT COUNT(*) FROM menu_items'),
     );
     if (count != 0) return;
-    await db.insert('menu_items', const MenuItem(
-      nameEn: 'Weighing Item',
-      nameTh: 'สินค้าชั่งน้ำหนัก',
-      nameCn: '称重商品',
-      price: 1,
-      isByWeight: true,
-    ).toMap()..remove('id'));
+    await db.insert('menu_items', MenuItem.quickWeigh.toMap()..remove('id'));
   }
 
   // ── 菜单 CRUD ─────────────────────────────────────────────

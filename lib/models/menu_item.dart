@@ -1,4 +1,12 @@
 class MenuItem {
+  static const quickWeigh = MenuItem(
+    id: -1,
+    nameEn: 'Weighing Item',
+    nameTh: 'สินค้าชั่งน้ำหนัก',
+    nameCn: '称重商品',
+    price: 1,
+  );
+
   final int? id;
   final String nameEn;
   final String nameTh;
@@ -50,6 +58,11 @@ class MenuItem {
         price: (m['price'] as num).toDouble(),
         isByWeight: (m['is_by_weight'] as int) == 1,
       );
+
+  bool get isQuickWeigh => isByWeight &&
+      nameEn == quickWeigh.nameEn &&
+      nameTh == quickWeigh.nameTh &&
+      nameCn == quickWeigh.nameCn;
 
   /// 优先使用所选语言；旧商品缺少译名时回退到已有名称。
   String nameFor(String language) {

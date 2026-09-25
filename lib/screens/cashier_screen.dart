@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:presentation_displays/displays_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/top_toast.dart';
@@ -38,6 +39,9 @@ class _CashierScreenState extends State<CashierScreen> {
   DateTime? _lastWeightAt;
 
   MenuItem? _selectedItem;
+  final _priceCtrl = TextEditingController(text: '1.00');
+  double _defaultPrice = 1;
+  double _enteredPrice = 1;
   bool _printerConnected = false;
   bool _printEnabled = true;
   bool _printing = false;
@@ -61,6 +65,7 @@ class _CashierScreenState extends State<CashierScreen> {
   @override
   void initState() {
     super.initState();
+    _loadDefaultPrice();
     _loadMenu();
     _loadPrintSetting();
     _connectScale();
@@ -126,6 +131,7 @@ class _CashierScreenState extends State<CashierScreen> {
 
   @override
   void dispose() {
+    _priceCtrl.dispose();
     _localeProvider?.removeListener(_syncCartToSecondaryDisplay);
     _weightSub?.cancel();
     _weightWatchdog?.cancel();
@@ -135,7 +141,144 @@ class _CashierScreenState extends State<CashierScreen> {
 
   Future<void> _loadMenu() async {
     final items = await _db.getMenuItems();
-    if (mounted) setState(() => _menuItems = items);
+    if (!mounted) return;
+    final defaultItem = items.firstWhere(
+      (item) => item.isQuickWeigh,
+      orElse: () => MenuItem.quickWeigh,
+    );
+    final selected = _selectedItem;
+    final next = selected == null || selected.isQuickWeigh
+        ? defaultItem
+        : items.firstWhere(
+            (item) => item.id == selected.id,
+            orElse: () => defaultItem,
+          );
+    setState(() {
+      _menuItems = items;
+      _selectedItem = next;
+      _fixedQty = 1;
+      _setPriceText(next.isQuickWeigh ? _defaultPrice : next.price);
+    });
+  }
+
+  Future<void> _loadDefaultPrice() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getDouble('default_weight_price') ?? 1;
+    if (!mounted || !saved.isFinite || saved <= 0) return;
+    setState(() {
+      _defaultPrice = saved;
+      if (_selectedItem == null || _selectedItem!.isQuickWeigh) {
+        _setPriceText(saved);
+      }
+    });
+  }
+
+  void _setPriceText(double price) {
+    _enteredPrice = price;
+    final text = price.toStringAsFixed(2);
+    _priceCtrl.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  Future<void> _saveDefaultPrice(LocaleProvider lp) async {
+    if (_enteredPrice <= 0) {
+      _showSnack(lp.tr('enter_positive_price'), type: ToastType.error);
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('default_weight_price', _enteredPrice);
+    if (!mounted) return;
+    setState(() => _defaultPrice = _enteredPrice);
+    _showSnack(lp.tr('default_price_saved'), type: ToastType.success);
+  }
+
+  Future<void> _showPriceKeypad(LocaleProvider lp) async {
+    var input = _priceCtrl.text;
+    var replaceOnNext = true;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refreshDialog) {
+          void press(String key) {
+            if (key == 'C') {
+              input = '';
+            } else if (key == '⌫') {
+              input = input.isEmpty ? '' : input.substring(0, input.length - 1);
+            } else {
+              final next = replaceOnNext
+                  ? (key == '.' ? '0.' : key)
+                  : input + key;
+              if (!RegExp(r'^\d{0,7}(\.\d{0,2})?$').hasMatch(next)) return;
+              input = next;
+            }
+            replaceOnNext = false;
+            refreshDialog(() {});
+            _priceCtrl.text = input;
+            if (mounted) {
+              setState(() => _enteredPrice = double.tryParse(input) ?? 0);
+            }
+          }
+
+          return AlertDialog(
+            title: Text(lp.tr('unit_price')),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('฿ ${input.isEmpty ? '0' : input}',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold)),
+                      ),
+                      IconButton(
+                        tooltip: lp.tr('clear'),
+                        onPressed: () => press('C'),
+                        icon: const Icon(Icons.clear_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.8,
+                    children: [
+                      for (final key in const ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '⌫'])
+                        FilledButton.tonal(
+                          onPressed: () => press(key),
+                          child: Text(key, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              if (_selectedItem?.isQuickWeigh ?? false)
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    _saveDefaultPrice(lp);
+                  },
+                  child: Text(lp.tr('save_default_price')),
+                ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(lp.tr('done')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _loadPrintSetting() async {
@@ -199,12 +342,17 @@ class _CashierScreenState extends State<CashierScreen> {
     setState(() {
       _selectedItem = item;
       _fixedQty = 1;
+      _setPriceText(item.isQuickWeigh ? _defaultPrice : item.price);
     });
   }
 
   void _addToCart(LocaleProvider lp) {
     if (_selectedItem == null || _printing) return;
     final item = _selectedItem!;
+    if (_enteredPrice <= 0) {
+      _showSnack(lp.tr('enter_positive_price'), type: ToastType.error);
+      return;
+    }
 
     double qty;
     if (item.isByWeight) {
@@ -220,12 +368,11 @@ class _CashierScreenState extends State<CashierScreen> {
     final subtotal = CartItem.saleSubtotal(
       byWeight: item.isByWeight,
       quantity: qty,
-      price: item.price,
+      price: _enteredPrice,
     );
 
     setState(() {
-      _cart.add(CartItem(menuItem: item, weight: qty, subtotal: subtotal));
-      _selectedItem = null;
+      _cart.add(CartItem(menuItem: item.copyWith(price: _enteredPrice), weight: qty, subtotal: subtotal));
     });
     _syncCartToSecondaryDisplay();
   }
@@ -240,7 +387,6 @@ class _CashierScreenState extends State<CashierScreen> {
     if (_printing) return;
     setState(() {
       _cart.clear();
-      _selectedItem = null;
     });
     _syncCartToSecondaryDisplay();
   }
@@ -376,6 +522,7 @@ class _CashierScreenState extends State<CashierScreen> {
           onPressed: () async {
             await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
             _loadPrintSetting();
+            _loadDefaultPrice();
             _connectScale();
           },
         ),
@@ -385,18 +532,12 @@ class _CashierScreenState extends State<CashierScreen> {
   }
 
   Widget _buildMenuPanel(LocaleProvider lp) {
-    if (_menuItems.isEmpty) {
-      return Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-        child: Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.fastfood_rounded, size: 72, color: Color(0xFFCBD5E1)),
-            const SizedBox(height: 16),
-            Text(lp.tr('empty_menu'), style: const TextStyle(color: Color(0xFF64748B), fontSize: 16, fontWeight: FontWeight.w500)),
-          ]),
-        ),
-      );
-    }
+    final items = _menuItems.any((item) => item.isQuickWeigh)
+        ? _menuItems
+        : [MenuItem.quickWeigh, ..._menuItems];
+    final visibleItems = items.map((item) => item.isQuickWeigh
+        ? item.copyWith(price: _defaultPrice)
+        : item).toList();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -415,11 +556,11 @@ class _CashierScreenState extends State<CashierScreen> {
               mainAxisSpacing: 16,
               childAspectRatio: 0.95,
             ),
-            itemCount: _menuItems.length,
+            itemCount: visibleItems.length,
             itemBuilder: (_, i) => _MenuCard(
-              item: _menuItems[i],
-              selected: _selectedItem?.id == _menuItems[i].id,
-              onTap: () => _selectMenuItem(_menuItems[i]),
+              item: visibleItems[i],
+              selected: _selectedItem?.id == visibleItems[i].id,
+              onTap: () => _selectMenuItem(visibleItems[i]),
               lp: lp,
             ),
           ),
@@ -495,18 +636,61 @@ class _CashierScreenState extends State<CashierScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _selectedItem!.isByWeight
-                          ? '${_selectedItem!.price.toStringAsFixed(2)} ${lp.tr('price_kg')}'
-                          : '${_selectedItem!.price.toStringAsFixed(2)} ${lp.tr('price_pc')}',
-                      style: const TextStyle(color: Color(0xFF0284C7), fontSize: 16, fontWeight: FontWeight.w800),
-                    ),
                   ],
                 ),
               ),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [TextInputFormatter.withFunction((oldValue, newValue) =>
+                      RegExp(r'^\d{0,7}(\.\d{0,2})?$').hasMatch(newValue.text)
+                          ? newValue : oldValue)],
+                  decoration: InputDecoration(
+                    labelText: lp.tr('unit_price'),
+                    prefixText: '฿ ',
+                    suffixText: _selectedItem!.isByWeight ? '/kg' : '/pc',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (value) => setState(() =>
+                      _enteredPrice = double.tryParse(value) ?? 0),
+                ),
+              ),
+              IconButton.filledTonal(
+                tooltip: lp.tr('number_keypad'),
+                icon: const Icon(Icons.dialpad_rounded),
+                onPressed: () => _showPriceKeypad(lp),
+              ),
+              if (_selectedItem!.isQuickWeigh)
+                TextButton(
+                  onPressed: () => _saveDefaultPrice(lp),
+                  child: Text(lp.tr('save_default_price')),
+                ),
+            ]),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(lp.tr('calculated_price'),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                Text(
+                  '฿ ${CartItem.saleSubtotal(
+                    byWeight: _selectedItem!.isByWeight,
+                    quantity: _selectedItem!.isByWeight
+                        ? (_weightValid && _scaleConnected ? _currentKg : 0)
+                        : _fixedQty.toDouble(),
+                    price: _enteredPrice,
+                  ).toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900,
+                      color: Color(0xFF0284C7)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
           ],
           if (hasSelected && _selectedItem!.isByWeight) ...[
             SizedBox(
