@@ -1,13 +1,15 @@
 class MenuItem {
   final int? id;
-  final String nameTh;   // 泰文名（主显示）
-  final String nameCn;   // 中文名（备注）
+  final String nameEn;
+  final String nameTh;
+  final String nameCn;
   final double price;    // 单价：按重量计价时为 ฿/kg，固定价格时为件价
   final bool isByWeight; // true = 称重计价, false = 固定单价
 
   const MenuItem({
     this.id,
-    required this.nameTh,
+    this.nameEn = '',
+    this.nameTh = '',
     this.nameCn = '',
     required this.price,
     this.isByWeight = true,
@@ -15,6 +17,7 @@ class MenuItem {
 
   MenuItem copyWith({
     int? id,
+    String? nameEn,
     String? nameTh,
     String? nameCn,
     double? price,
@@ -22,6 +25,7 @@ class MenuItem {
   }) {
     return MenuItem(
       id: id ?? this.id,
+      nameEn: nameEn ?? this.nameEn,
       nameTh: nameTh ?? this.nameTh,
       nameCn: nameCn ?? this.nameCn,
       price: price ?? this.price,
@@ -31,6 +35,7 @@ class MenuItem {
 
   Map<String, dynamic> toMap() => {
         'id': id,
+        'name_en': nameEn,
         'name_th': nameTh,
         'name_cn': nameCn,
         'price': price,
@@ -39,13 +44,20 @@ class MenuItem {
 
   factory MenuItem.fromMap(Map<String, dynamic> m) => MenuItem(
         id: m['id'] as int?,
-        nameTh: m['name_th'] as String,
+        nameEn: (m['name_en'] as String?) ?? '',
+        nameTh: (m['name_th'] as String?) ?? '',
         nameCn: (m['name_cn'] as String?) ?? '',
         price: (m['price'] as num).toDouble(),
         isByWeight: (m['is_by_weight'] as int) == 1,
       );
 
-  /// 显示名：优先泰文，中文作为辅助
-  String get displayName => nameTh;
-  String get subName => nameCn;
+  /// 优先使用所选语言；旧商品缺少译名时回退到已有名称。
+  String nameFor(String language) {
+    final names = switch (language) {
+      'th' => [nameTh, nameEn, nameCn],
+      'zh' => [nameCn, nameEn, nameTh],
+      _ => [nameEn, nameTh, nameCn],
+    };
+    return names.firstWhere((name) => name.trim().isNotEmpty, orElse: () => '');
+  }
 }

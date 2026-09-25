@@ -12,7 +12,7 @@ class PrintService {
   bool _connected = false;
   bool get isConnected => _connected;
 
-  /// 连接打印机（USB）
+  /// 连接内置或 USB 打印机
   Future<bool> connect() async {
     try {
       final result = await _method.invokeMethod<bool>('openPort');
@@ -40,6 +40,8 @@ class PrintService {
     required String shopName,
     required List<CartItem> items,
     required double total,
+    String language = 'en',
+    String totalLabel = 'Total',
   }) async {
     try {
       // 如果未连接，先尝试连接
@@ -50,8 +52,10 @@ class PrintService {
 
       final result = await _method.invokeMethod<bool>('printTicket', {
         'shopName': shopName,
-        'items': items.map((e) => e.toPrintMap()).toList(),
+        'items': items.map((e) => e.toPrintMap(language)).toList(),
         'total': total,
+        'language': language,
+        'totalLabel': totalLabel,
       });
       if (result != true) _connected = false;
       return result == true;

@@ -18,17 +18,23 @@ class DbService {
     final path = join(await getDatabasesPath(), 'cashier.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, v) async {
         await db.execute('''
           CREATE TABLE menu_items (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name_en    TEXT NOT NULL DEFAULT '',
             name_th    TEXT NOT NULL,
             name_cn    TEXT DEFAULT '',
             price      REAL NOT NULL,
             is_by_weight INTEGER NOT NULL DEFAULT 1
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute("ALTER TABLE menu_items ADD COLUMN name_en TEXT NOT NULL DEFAULT ''");
+        }
       },
     );
   }

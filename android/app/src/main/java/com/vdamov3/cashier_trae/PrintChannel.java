@@ -212,6 +212,7 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
         }
 
         String shopName = call.argument("shopName");
+        String totalLabel = call.argument("totalLabel");
         List<Map<String, Object>> items = call.argument("items");
         Object totalArg = call.argument("total");
         double total = totalArg instanceof Number ? ((Number) totalArg).doubleValue() : 0;
@@ -220,7 +221,7 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
                 + " items=" + (items != null ? items.size() : 0)
                 + " total=" + total);
 
-        Bitmap bmp = renderTicket(shopName, items, total);
+        Bitmap bmp = renderTicket(shopName, totalLabel, items, total);
         if (bmp == null) {
             Log.e(TAG, "executePrint: renderTicket returned null");
             return false;
@@ -295,15 +296,18 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
 
     /**
      * 将收据内容渲染为 Bitmap。
-     * 使用 Android 系统字体，原生支持泰文 Unicode，不需要额外字体文件。
+     * 使用 Android 系统字体渲染当前语言的 Unicode 文案。
      */
     @SuppressWarnings("unchecked")
-    private Bitmap renderTicket(String shopName, List<Map<String, Object>> items, double total) {
+    private Bitmap renderTicket(String shopName, String totalLabel,
+                                List<Map<String, Object>> items, double total) {
         String dateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                 .format(new Date());
 
         // ── 构建内容字符串 ─────────────────────────────────────
-        String title = (shopName != null && !shopName.isEmpty()) ? shopName : "ร้านค้า";
+        String title = (shopName != null && !shopName.trim().isEmpty()) ? shopName.trim() : "Store";
+        String receiptTotalLabel = (totalLabel != null && !totalLabel.trim().isEmpty())
+                ? totalLabel.trim() : "Total";
 
         StringBuilder detail = new StringBuilder();
         detail.append(dateTime).append("\n");
@@ -325,9 +329,9 @@ public class PrintChannel implements MethodChannel.MethodCallHandler {
             }
         }
         detail.append(line('-', 32)).append("\n");
-        detail.append(String.format("รวม / Total: %.2f ฿\n\n", total));
+        detail.append(String.format(Locale.US, "%s: %.2f ฿\n\n", receiptTotalLabel, total));
 
-        // ③ 打出即将渲染的完整票据内容，方便核对泰文
+        // ③ 打出即将渲染的完整票据内容，方便核对语言和金额
         Log.d(TAG, "renderTicket title=[" + title + "]");
         Log.d(TAG, "renderTicket detail=[\n" + detail + "]");
 

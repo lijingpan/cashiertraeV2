@@ -28,6 +28,7 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   Future<void> _showDialog(LocaleProvider lp, {MenuItem? editing}) async {
+    final nameEnCtrl = TextEditingController(text: editing?.nameEn ?? '');
     final nameThCtrl = TextEditingController(text: editing?.nameTh ?? '');
     final nameCnCtrl = TextEditingController(text: editing?.nameCn ?? '');
     final priceCtrl = TextEditingController(
@@ -56,12 +57,25 @@ class _MenuScreenState extends State<MenuScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 8),
+                  Text(lp.tr('product_name_en'), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B), fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: nameEnCtrl,
+                    decoration: InputDecoration(
+                      hintText: lp.tr('enter_en_name'),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: const Color(0xFFF1F5F9),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   Text(lp.tr('product_name_th'), style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B), fontSize: 13)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: nameThCtrl,
                     decoration: InputDecoration(
-                      hintText: lp.tr('enter_th_name'),
+                      hintText: lp.tr('product_name_th'),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       filled: true,
                       fillColor: const Color(0xFFF1F5F9),
@@ -154,10 +168,11 @@ class _MenuScreenState extends State<MenuScreen> {
               ),
               child: Text(lp.tr('save'), style: const TextStyle(fontWeight: FontWeight.bold)),
               onPressed: () {
+                final nameEn = nameEnCtrl.text.trim();
                 final nameTh = nameThCtrl.text.trim();
                 final price = double.tryParse(priceCtrl.text.trim());
-                if (nameTh.isEmpty) {
-                  TopToast.show(ctx, lp.tr('enter_th_name'), type: ToastType.error);
+                if (nameEn.isEmpty) {
+                  TopToast.show(ctx, lp.tr('enter_en_name'), type: ToastType.error);
                   return;
                 }
                 if (price == null || price < 0) {
@@ -166,6 +181,7 @@ class _MenuScreenState extends State<MenuScreen> {
                 }
                 Navigator.pop(ctx, MenuItem(
                   id: editing?.id,
+                  nameEn: nameEn,
                   nameTh: nameTh,
                   nameCn: nameCnCtrl.text.trim(),
                   price: price,
@@ -195,7 +211,7 @@ class _MenuScreenState extends State<MenuScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text(lp.tr('delete_info'), style: const TextStyle(fontWeight: FontWeight.bold)),
-        content: Text(lp.tr('delete_confirm', args: {'name': item.nameTh})),
+        content: Text(lp.tr('delete_confirm', args: {'name': item.nameFor(lp.localeStr)})),
         actions: [
           TextButton(child: Text(lp.tr('cancel'), style: const TextStyle(color: Color(0xFF64748B))), onPressed: () => Navigator.pop(ctx, false)),
           FilledButton(
@@ -281,11 +297,9 @@ class _MenuScreenState extends State<MenuScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    item.nameTh,
+                                    item.nameFor(lp.localeStr),
                                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF1E293B)),
                                   ),
-                                  if (item.nameCn.isNotEmpty)
-                                    Text(item.nameCn, style: TextStyle(fontSize: 13, color: const Color(0xFF64748B).withValues(alpha: 0.7), fontWeight: FontWeight.w500)),
                                 ],
                               ),
                             ),

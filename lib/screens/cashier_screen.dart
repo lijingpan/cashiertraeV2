@@ -45,6 +45,18 @@ class _CashierScreenState extends State<CashierScreen> {
 
   final DisplayManager _displayManager = DisplayManager();
   bool _hasSecondaryDisplay = false;
+  LocaleProvider? _localeProvider;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = Provider.of<LocaleProvider>(context);
+    if (_localeProvider != provider) {
+      _localeProvider?.removeListener(_syncCartToSecondaryDisplay);
+      _localeProvider = provider;
+      provider.addListener(_syncCartToSecondaryDisplay);
+    }
+  }
 
   @override
   void initState() {
@@ -70,7 +82,7 @@ class _CashierScreenState extends State<CashierScreen> {
   Future<void> _setupSecondaryDisplay() async {
     try {
       final displays = await _displayManager.getDisplays();
-      if (displays != null && displays.length > 1) {
+      if (mounted && displays != null && displays.length > 1) {
         final secondaryDisplay = displays[1];
         await _displayManager.showSecondaryDisplay(
           displayId: secondaryDisplay.displayId!, 
@@ -85,11 +97,13 @@ class _CashierScreenState extends State<CashierScreen> {
   }
 
   void _syncCartToSecondaryDisplay() {
-    if (!_hasSecondaryDisplay) return;
+    if (!_hasSecondaryDisplay || !mounted) return;
+    final lp = _localeProvider;
+    if (lp == null) return;
     
     final cartData = _cart.map((e) {
       return {
-        'name': e.menuItem.nameTh,
+        'name': e.menuItem.nameFor(lp.localeStr),
         'price': e.menuItem.price,
         'weight': e.weight,
         'subtotal': e.subtotal,
@@ -100,6 +114,11 @@ class _CashierScreenState extends State<CashierScreen> {
     final payload = jsonEncode({
       'cart': cartData,
       'total': _total,
+      'language': lp.localeStr,
+      'welcome': lp.tr('customer_welcome'),
+      'cartTitle': lp.tr('customer_cart_title'),
+      'emptyCart': lp.tr('cart_empty'),
+      'totalLabel': lp.tr('total'),
     });
     
     _displayManager.transferDataToPresentation(payload);
@@ -107,6 +126,7 @@ class _CashierScreenState extends State<CashierScreen> {
 
   @override
   void dispose() {
+    _localeProvider?.removeListener(_syncCartToSecondaryDisplay);
     _weightSub?.cancel();
     _weightWatchdog?.cancel();
     _weight.close();
@@ -244,11 +264,18 @@ class _CashierScreenState extends State<CashierScreen> {
     bool ok;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final shopName = prefs.getString('shop_name') ?? 'ร้านอาหาร';
+      final savedShopName = prefs.getString('shop_name');
+      final shopName = savedShopName == null ||
+              savedShopName.trim().isEmpty ||
+              savedShopName == 'ร้านอาหาร'
+          ? lp.tr('default_shop_name')
+          : savedShopName.trim();
       ok = await _print.printTicket(
         shopName: shopName,
         items: _cart,
         total: _total,
+        language: lp.localeStr,
+        totalLabel: lp.tr('total'),
       );
     } catch (_) {
       ok = false;
@@ -323,9 +350,9 @@ class _CashierScreenState extends State<CashierScreen> {
             child: DropdownButton<String>(
               value: lp.localeStr,
               items: [
+                DropdownMenuItem(value: 'en', child: Text(lp.tr('lang_en'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                 DropdownMenuItem(value: 'th', child: Text(lp.tr('lang_th'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                 DropdownMenuItem(value: 'zh', child: Text(lp.tr('lang_zh'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-                DropdownMenuItem(value: 'en', child: Text(lp.tr('lang_en'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
               ],
               onChanged: (v) {
                 if (v != null) lp.setLocale(v);
@@ -462,16 +489,10 @@ class _CashierScreenState extends State<CashierScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _selectedItem!.nameTh,
+                          _selectedItem!.nameFor(lp.localeStr),
                           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (_selectedItem!.nameCn.isNotEmpty)
-                          Text(
-                            _selectedItem!.nameCn,
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF64748B).withValues(alpha: 0.8)),
-                            overflow: TextOverflow.ellipsis,
-                          ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -568,9 +589,7 @@ class _CashierScreenState extends State<CashierScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.menuItem.nameTh, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A), height: 1.1)),
-                    if (item.menuItem.nameCn.isNotEmpty)
-                      Text(item.menuItem.nameCn, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF64748B).withValues(alpha: 0.7))),
+                    Text(item.menuItem.nameFor(lp.localeStr), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Color(0xFF0F172A), height: 1.1)),
                     const SizedBox(height: 8),
                     RichText(
                       text: TextSpan(
@@ -670,8 +689,7 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryName = item.nameTh;
-    final secondaryName = item.nameCn;
+    final primaryName = item.nameFor(lp.localeStr);
     
     return RepaintBoundary(
       child: GestureDetector(
@@ -728,15 +746,6 @@ class _MenuCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (secondaryName.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        secondaryName,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: selected ? const Color(0xDDFFFFFF) : const Color(0xFF64748B)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
                   ],
                 ),
               ),

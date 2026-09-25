@@ -29,7 +29,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     _pathCtrl.text = prefs.getString('serial_path') ?? '/dev/ttyS4';
     _rateCtrl.text = (prefs.getInt('serial_rate') ?? 9600).toString();
-    _shopCtrl.text = prefs.getString('shop_name') ?? 'ร้านอาหาร';
+    final savedShopName = prefs.getString('shop_name');
+    _shopCtrl.text = savedShopName == 'ร้านอาหาร' ? '' : savedShopName ?? '';
     setState(() => _printEnabled = prefs.getBool('print_enabled') ?? true);
   }
 
@@ -96,6 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _shopCtrl,
                   decoration: InputDecoration(
                     labelText: lp.tr('shop_name'),
+                    hintText: lp.tr('default_shop_name'),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: Colors.white,

@@ -12,6 +12,10 @@ class CustomerDisplayScreen extends StatefulWidget {
 class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
   List<dynamic> _cartItems = [];
   double _totalAmount = 0.0;
+  String _welcome = 'Welcome to our store';
+  String _cartTitle = 'My Cart';
+  String _emptyCart = 'Cart is empty';
+  String _totalLabel = 'Total';
 
   void _handleData(dynamic data) {
     if (data != null) {
@@ -21,10 +25,14 @@ class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
           setState(() {
             _cartItems = map['cart'] ?? [];
             _totalAmount = (map['total'] ?? 0.0).toDouble();
+            _welcome = map['welcome'] as String? ?? 'Welcome to our store';
+            _cartTitle = map['cartTitle'] as String? ?? 'My Cart';
+            _emptyCart = map['emptyCart'] as String? ?? 'Cart is empty';
+            _totalLabel = map['totalLabel'] as String? ?? 'Total';
           });
         }
       } catch (e) {
-        debugPrint('副屏解析数据错误: $e');
+        debugPrint('Customer display data error: $e');
       }
     }
   }
@@ -55,8 +63,8 @@ class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
                     children: [
                       Icon(Icons.fastfood, size: 120, color: const Color(0xFFCBD5E1)),
                       const SizedBox(height: 24),
-                      const Text(
-                        'ยินดีต้อนรับ\nWelcome to our store',
+                      Text(
+                        _welcome,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 48,
@@ -84,7 +92,7 @@ class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
               ),
               child: Column(
                 children: [
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.all(20),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -92,7 +100,7 @@ class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
                         Icon(Icons.shopping_bag_outlined, color: Color(0xFF0284C7), size: 36),
                         SizedBox(width: 12),
                         Text(
-                          'รายการสินค้า / My Cart',
+                          _cartTitle,
                           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                         ),
                       ],
@@ -101,9 +109,9 @@ class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
                   const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
                   Expanded(
                     child: _cartItems.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              'ยังไม่มีสินค้า',
+                              _emptyCart,
                               style: TextStyle(fontSize: 24, color: Color(0xFF94A3B8)),
                             ),
                           )
@@ -168,8 +176,8 @@ class _CustomerDisplayScreenState extends State<CustomerDisplayScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'รวม / Total',
+                        Text(
+                          _totalLabel,
                           style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         Text(

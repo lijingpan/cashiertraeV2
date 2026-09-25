@@ -30,8 +30,8 @@ class CartItem {
       : 'x${weight.toStringAsFixed(0)}';
 
   /// 转为传给 Android 打印的 Map
-  Map<String, dynamic> toPrintMap() => {
-        'name': menuItem.nameTh,
+  Map<String, dynamic> toPrintMap(String language) => {
+        'name': menuItem.nameFor(language),
         'weight': weight,
         'price': menuItem.price,
         'subtotal': subtotal,
