@@ -18,6 +18,7 @@ dependencies:
   provider: ^6.1.5+1
   presentation_displays:
     path: vendor/presentation_displays
+  camera: ^0.12.1
 
 dev_dependencies:
   flutter_test:

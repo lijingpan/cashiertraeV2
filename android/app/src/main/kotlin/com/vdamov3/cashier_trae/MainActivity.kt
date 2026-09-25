@@ -9,6 +9,7 @@ class MainActivity : FlutterActivity() {
 
     private val weightChannel = WeightChannel()
     private val printChannel by lazy { PrintChannel(applicationContext) }
+    private val aiChannel by lazy { AiEmbeddingChannel(applicationContext) }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -21,11 +22,13 @@ class MainActivity : FlutterActivity() {
 
         // 打印 MethodChannel
         MethodChannel(messenger, "cashier/print").setMethodCallHandler(printChannel)
+        MethodChannel(messenger, "cashier/ai_embedding").setMethodCallHandler(aiChannel)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         // 关闭串口，释放资源
         weightChannel.onCancel(null)
+        aiChannel.close()
     }
 }

@@ -96,4 +96,34 @@ void main() {
       await directory.delete(recursive: true);
     }
   });
+
+  test('version 3 upgrade adds local visual sample storage', () async {
+    final directory = await Directory.systemTemp.createTemp('cashier-ai-upgrade-');
+    final path = join(directory.path, 'cashier.db');
+    try {
+      final oldDb = await openDatabase(path, version: 3, onCreate: (db, _) async {
+        await db.execute('''CREATE TABLE menu_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name_en TEXT NOT NULL DEFAULT '', name_th TEXT NOT NULL,
+          name_cn TEXT DEFAULT '', price REAL NOT NULL,
+          is_by_weight INTEGER NOT NULL DEFAULT 1)''');
+        await db.insert('menu_items', {
+          'name_en': 'Apple', 'name_th': '', 'price': 10.0,
+        });
+      });
+      await oldDb.close();
+      final db = await DbService.openAt(path);
+      expect(await db.query('menu_items'), hasLength(1));
+      await db.insert('visual_samples', {
+        'menu_item_id': 1,
+        'model': 'mobilenet_v3_small_v1',
+        'embedding': '[1.0,0.0]',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      expect(await db.query('visual_samples'), hasLength(1));
+      await db.close();
+    } finally {
+      await directory.delete(recursive: true);
+    }
+  });
 }

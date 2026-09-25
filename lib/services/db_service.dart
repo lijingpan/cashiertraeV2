@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'dart:convert';
 import '../models/menu_item.dart';
 
 class DbService {
@@ -22,7 +23,7 @@ class DbService {
   static Future<Database> openAt(String path) {
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, v) async {
         await db.execute('''
           CREATE TABLE menu_items (
@@ -35,6 +36,7 @@ class DbService {
           )
         ''');
         await _seedDefaultMenuIfEmpty(db);
+        await _createVisualSamples(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -42,6 +44,9 @@ class DbService {
         }
         if (oldVersion < 3) {
           await _seedDefaultMenuIfEmpty(db);
+        }
+        if (oldVersion < 4) {
+          await _createVisualSamples(db);
         }
       },
     );
@@ -53,6 +58,21 @@ class DbService {
     );
     if (count != 0) return;
     await db.insert('menu_items', MenuItem.quickWeigh.toMap()..remove('id'));
+  }
+
+  static Future<void> _createVisualSamples(Database db) async {
+    await db.execute('''
+      CREATE TABLE visual_samples (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        menu_item_id INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        embedding TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX visual_samples_item_idx ON visual_samples(menu_item_id)',
+    );
   }
 
   // ── 菜单 CRUD ─────────────────────────────────────────────
@@ -77,6 +97,52 @@ class DbService {
   }
 
   Future<void> deleteMenuItem(int id) async {
-    await (await db).delete('menu_items', where: 'id = ?', whereArgs: [id]);
+    final database = await db;
+    await database.transaction((txn) async {
+      await txn.delete('visual_samples', where: 'menu_item_id = ?', whereArgs: [id]);
+      await txn.delete('menu_items', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
+  Future<void> addVisualSample(int itemId, List<double> embedding) async {
+    if (embedding.isEmpty || embedding.any((value) => !value.isFinite)) {
+      throw ArgumentError('Invalid image embedding');
+    }
+    await (await db).insert('visual_samples', {
+      'menu_item_id': itemId,
+      'model': 'mobilenet_v3_small_v1',
+      'embedding': jsonEncode(embedding),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  Future<Map<int, int>> visualSampleCounts() async {
+    final rows = await (await db).rawQuery(
+      'SELECT menu_item_id, COUNT(*) AS count FROM visual_samples '
+      'WHERE model = ? GROUP BY menu_item_id',
+      ['mobilenet_v3_small_v1'],
+    );
+    return {
+      for (final row in rows)
+        row['menu_item_id'] as int: row['count'] as int,
+    };
+  }
+
+  Future<List<(int, List<double>)>> visualSamples() async {
+    final rows = await (await db).query(
+      'visual_samples',
+      columns: ['menu_item_id', 'embedding'],
+      where: 'model = ?',
+      whereArgs: ['mobilenet_v3_small_v1'],
+    );
+    return rows.map((row) => (
+      row['menu_item_id'] as int,
+      (jsonDecode(row['embedding'] as String) as List)
+          .map((value) => (value as num).toDouble()).toList(),
+    )).toList();
+  }
+
+  Future<void> clearVisualSamples(int itemId) async {
+    await (await db).delete('visual_samples', where: 'menu_item_id = ?', whereArgs: [itemId]);
   }
 }

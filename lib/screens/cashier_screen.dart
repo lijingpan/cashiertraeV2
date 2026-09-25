@@ -11,9 +11,11 @@ import '../models/cart_item.dart';
 import '../services/db_service.dart';
 import '../services/weight_service.dart';
 import '../services/print_service.dart';
+import '../services/ai_recognition_service.dart';
 import '../l10n/locale_provider.dart';
 import 'menu_screen.dart';
 import 'settings_screen.dart';
+import 'ai_camera_screen.dart';
 
 class CashierScreen extends StatefulWidget {
   const CashierScreen({super.key});
@@ -322,6 +324,48 @@ class _CashierScreenState extends State<CashierScreen> {
     });
   }
 
+  Future<void> _recognizeProduct(LocaleProvider lp) async {
+    final counts = await _db.visualSampleCounts();
+    if (!mounted) return;
+    if (!counts.keys.any((id) => _menuItems.any((item) => item.id == id && !item.isQuickWeigh))) {
+      _showSnack(lp.tr('ai_no_samples'), type: ToastType.error);
+      return;
+    }
+    final embedding = await Navigator.push<List<double>>(
+      context,
+      MaterialPageRoute(builder: (_) => const AiCameraScreen()),
+    );
+    if (embedding == null || !mounted) return;
+    final matches = await AiRecognitionService().recognize(embedding, _menuItems);
+    if (!mounted) return;
+    if (matches.isEmpty) {
+      _showSnack(lp.tr('ai_no_match'), type: ToastType.error);
+      return;
+    }
+    final selected = await showDialog<MenuItem>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(lp.tr('ai_choose')),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final match in matches)
+                ListTile(
+                  title: Text(match.item.nameFor(lp.localeStr)),
+                  subtitle: Text('${lp.tr('ai_similarity')}: ${(match.similarity * 100).toStringAsFixed(0)}%'),
+                  onTap: () => Navigator.pop(dialogContext, match.item),
+                ),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(lp.tr('cancel')))],
+      ),
+    );
+    if (selected != null && mounted) _selectMenuItem(selected);
+  }
+
   void _addToCart(LocaleProvider lp) {
     if (_selectedItem == null || _printing) return;
     final item = _selectedItem!;
@@ -493,6 +537,11 @@ class _CashierScreenState extends State<CashierScreen> {
           ),
         ),
         const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.camera_alt_outlined),
+          tooltip: lp.tr('ai_camera'),
+          onPressed: () => _recognizeProduct(lp),
+        ),
         IconButton(
           icon: const Icon(Icons.restaurant_menu_rounded),
           tooltip: lp.tr('menu_manage'),

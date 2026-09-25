@@ -4,6 +4,7 @@ import '../models/menu_item.dart';
 import '../services/db_service.dart';
 import '../l10n/locale_provider.dart';
 import '../utils/top_toast.dart';
+import 'ai_camera_screen.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -15,6 +16,7 @@ class MenuScreen extends StatefulWidget {
 class _MenuScreenState extends State<MenuScreen> {
   final _db = DbService();
   List<MenuItem> _items = [];
+  Map<int, int> _sampleCounts = {};
 
   @override
   void initState() {
@@ -24,7 +26,28 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Future<void> _load() async {
     final items = await _db.getMenuItems();
-    setState(() => _items = items);
+    final counts = await _db.visualSampleCounts();
+    if (mounted) setState(() { _items = items; _sampleCounts = counts; });
+  }
+
+  Future<void> _addSample(LocaleProvider lp, MenuItem item) async {
+    final embedding = await Navigator.push<List<double>>(
+      context,
+      MaterialPageRoute(builder: (_) => const AiCameraScreen()),
+    );
+    if (embedding == null || item.id == null) return;
+    await _db.addVisualSample(item.id!, embedding);
+    if (!mounted) return;
+    TopToast.show(context, lp.tr('ai_sample_saved'), type: ToastType.success);
+    await _load();
+  }
+
+  Future<void> _clearSamples(LocaleProvider lp, MenuItem item) async {
+    if (item.id == null) return;
+    await _db.clearVisualSamples(item.id!);
+    if (!mounted) return;
+    TopToast.show(context, lp.tr('ai_samples_cleared'), type: ToastType.success);
+    await _load();
   }
 
   Future<void> _showDialog(LocaleProvider lp, {MenuItem? editing}) async {
@@ -330,6 +353,22 @@ class _MenuScreenState extends State<MenuScreen> {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (!item.isQuickWeigh) ...[
+                                  Text('${_sampleCounts[item.id] ?? 0}', style: const TextStyle(color: Color(0xFF64748B))),
+                                  const SizedBox(width: 4),
+                                  Tooltip(
+                                    message: lp.tr('ai_add_sample'),
+                                    child: _ActionButton(icon: Icons.camera_alt_outlined, color: const Color(0xFF0284C7), onTap: () => _addSample(lp, item)),
+                                  ),
+                                  if ((_sampleCounts[item.id] ?? 0) > 0) ...[
+                                    const SizedBox(width: 4),
+                                    Tooltip(
+                                      message: lp.tr('ai_clear_samples'),
+                                      child: _ActionButton(icon: Icons.restart_alt, color: const Color(0xFF64748B), onTap: () => _clearSamples(lp, item)),
+                                    ),
+                                  ],
+                                  const SizedBox(width: 8),
+                                ],
                                 _ActionButton(icon: Icons.edit_rounded, color: const Color(0xFF64748B), onTap: () => _showDialog(lp, editing: item)),
                                 const SizedBox(width: 8),
                                 _ActionButton(icon: Icons.delete_outline_rounded, color: const Color(0xFFEF4444), onTap: () => _delete(lp, item)),
