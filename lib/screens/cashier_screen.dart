@@ -187,19 +187,21 @@ class _CashierScreenState extends State<CashierScreen> {
     final item = _selectedItem!;
 
     double qty;
-    double subtotal;
-
     if (item.isByWeight) {
       if (!_weightValid || !_scaleConnected || _currentKg <= 0) {
         _showSnack(lp.tr('pls_put_on_scale'), type: ToastType.error);
         return;
       }
       qty = _currentKg;
-      subtotal = qty * item.price;
     } else {
       qty = _fixedQty.toDouble();
-      subtotal = qty * item.price;
     }
+
+    final subtotal = CartItem.saleSubtotal(
+      byWeight: item.isByWeight,
+      quantity: qty,
+      price: item.price,
+    );
 
     setState(() {
       _cart.add(CartItem(menuItem: item, weight: qty, subtotal: subtotal));

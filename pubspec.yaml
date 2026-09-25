@@ -2,7 +2,7 @@ name: cashier_trae
 description: "离线收银台 — 称重 + 打印泰文票据"
 publish_to: 'none'
 
-version: 1.0.2+3
+version: 1.0.4+5
 
 environment:
   sdk: ^3.10.7

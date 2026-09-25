@@ -11,6 +11,20 @@ class CartItem {
     required this.subtotal,
   });
 
+  /// 称重精确到克、单价精确到分；每行金额按分四舍五入。
+  static double saleSubtotal({
+    required bool byWeight,
+    required double quantity,
+    required double price,
+  }) {
+    final priceCents = (price * 100).round();
+    if (byWeight) {
+      final grams = (quantity * 1000).round();
+      return ((grams * priceCents + 500) ~/ 1000) / 100;
+    }
+    return quantity.round() * priceCents / 100;
+  }
+
   String get weightLabel => menuItem.isByWeight
       ? '${weight.toStringAsFixed(3)} kg'
       : 'x${weight.toStringAsFixed(0)}';
