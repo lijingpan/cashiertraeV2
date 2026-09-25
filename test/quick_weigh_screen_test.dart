@@ -62,11 +62,28 @@ void main() {
       expect(find.text('7'), findsOneWidget);
       expect(find.text('Tare'), findsNothing);
       expect(find.text('Zero'), findsNothing);
+      expect(find.byTooltip('Product Camera'), findsNothing);
       expect(tester.getTopLeft(find.text('Cart is empty')).dy,
           greaterThan(tester.getTopLeft(find.text('Unit price')).dy));
       final priceField = tester.widget<TextField>(find.byType(TextField).first);
       expect(priceField.controller!.text, '2.50');
       expect(find.byType(AlertDialog), findsNothing);
+
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enable product camera'), findsOneWidget);
+      expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile).last).value, false);
+      await tester.tap(find.text('Enable product camera'));
+      await tester.scrollUntilVisible(
+        find.text('Save Settings'), 300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Save Settings'));
+      await tester.pump();
+      await tester.pageBack();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Product Camera'), findsOneWidget);
 
       await tester.tap(find.text('Weighing Item').first);
       await tester.tap(find.widgetWithText(FilledButton, '5'));

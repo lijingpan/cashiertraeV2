@@ -18,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _shopCtrl = TextEditingController();
   final _defaultPriceCtrl = TextEditingController();
   bool _printEnabled = true;
+  bool _productCameraEnabled = false;
 
   @override
   void initState() {
@@ -33,7 +34,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final savedShopName = prefs.getString('shop_name');
     _shopCtrl.text = savedShopName == 'ร้านอาหาร' ? '' : savedShopName ?? '';
     _defaultPriceCtrl.text = (prefs.getDouble('default_weight_price') ?? 1).toStringAsFixed(2);
-    setState(() => _printEnabled = prefs.getBool('print_enabled') ?? true);
+    setState(() {
+      _printEnabled = prefs.getBool('print_enabled') ?? true;
+      _productCameraEnabled = prefs.getBool('product_camera_enabled') ?? false;
+    });
   }
 
   Future<void> _save(LocaleProvider lp) async {
@@ -54,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setString('shop_name', _shopCtrl.text.trim());
     await prefs.setDouble('default_weight_price', defaultPrice);
     await prefs.setBool('print_enabled', _printEnabled);
+    await prefs.setBool('product_camera_enabled', _productCameraEnabled);
     if (!mounted) return;
     TopToast.show(context, lp.tr('settings_saved'), type: ToastType.success);
   }
@@ -138,6 +143,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ]),
               const SizedBox(height: 24),
+              _Section(title: lp.tr('product_camera_settings'), children: [
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(lp.tr('product_camera_enabled')),
+                  subtitle: Text(lp.tr('product_camera_hint')),
+                  value: _productCameraEnabled,
+                  onChanged: (value) => setState(() => _productCameraEnabled = value),
+                ),
+              ]),
+              const SizedBox(height: 24),
               _Section(title: lp.tr('serial_setting'), children: [
                 TextField(
                   controller: _pathCtrl,
@@ -197,26 +212,26 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 4, offset: Offset(0, 2))],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(width: 4, height: 16, decoration: BoxDecoration(color: const Color(0xFF0284C7), borderRadius: BorderRadius.circular(2))),
-              const SizedBox(width: 8),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
-            ],
-          ),
-          const SizedBox(height: 20),
-          ...children,
-        ],
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(width: 4, height: 16, decoration: BoxDecoration(color: const Color(0xFF0284C7), borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 8),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
+              ],
+            ),
+            const SizedBox(height: 20),
+            ...children,
+          ],
+        ),
       ),
     );
   }

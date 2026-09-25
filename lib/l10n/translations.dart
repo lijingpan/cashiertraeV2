@@ -1,6 +1,9 @@
 class AppTranslations {
   static const Map<String, Map<String, String>> locale = {
     'th': {
+      'product_camera_settings': 'กล้องสินค้า',
+      'product_camera_enabled': 'เปิดกล้องสินค้า',
+      'product_camera_hint': 'เปิดเมื่อมีกล้องที่หันไปยังสินค้าบนเครื่องชั่งเท่านั้น',
       'ai_camera': 'กล้องสินค้า',
       'ai_capture': 'ถ่ายภาพสินค้า',
       'ai_camera_error': 'เปิดกล้องหรือวิเคราะห์ภาพไม่สำเร็จ',
@@ -92,6 +95,9 @@ class AppTranslations {
       'customer_cart_title': 'รายการสินค้า',
     },
     'zh': {
+      'product_camera_settings': '商品摄像头',
+      'product_camera_enabled': '启用商品识别摄像头',
+      'product_camera_hint': '仅在安装朝向秤盘商品的摄像头后开启',
       'ai_camera': '商品摄像头',
       'ai_capture': '拍摄商品',
       'ai_camera_error': '摄像头或图像分析失败',
@@ -183,6 +189,9 @@ class AppTranslations {
       'customer_cart_title': '购物车',
     },
     'en': {
+      'product_camera_settings': 'Product Camera',
+      'product_camera_enabled': 'Enable product camera',
+      'product_camera_hint': 'Turn on only when a camera points at products on the scale',
       'ai_camera': 'Product Camera',
       'ai_capture': 'Capture Product',
       'ai_camera_error': 'Camera or image analysis failed',

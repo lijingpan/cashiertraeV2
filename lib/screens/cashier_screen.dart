@@ -50,6 +50,7 @@ class _CashierScreenState extends State<CashierScreen> {
   bool _keypadReplaceOnNext = true;
   bool _printerConnected = false;
   bool _printEnabled = true;
+  bool _productCameraEnabled = false;
   bool _printing = false;
   int _fixedQty = 1;
 
@@ -74,6 +75,7 @@ class _CashierScreenState extends State<CashierScreen> {
     _loadDefaultPrice();
     _loadMenu();
     _loadPrintSetting();
+    _loadProductCameraSetting();
     _connectScale();
     _weightWatchdog = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_lastWeightAt != null &&
@@ -241,6 +243,14 @@ class _CashierScreenState extends State<CashierScreen> {
       await _print.disconnect();
       if (!mounted) return;
       setState(() => _printerConnected = false);
+    }
+  }
+
+  Future<void> _loadProductCameraSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() => _productCameraEnabled =
+          prefs.getBool('product_camera_enabled') ?? false);
     }
   }
 
@@ -537,11 +547,12 @@ class _CashierScreenState extends State<CashierScreen> {
           ),
         ),
         const SizedBox(width: 8),
-        IconButton(
-          icon: const Icon(Icons.camera_alt_outlined),
-          tooltip: lp.tr('ai_camera'),
-          onPressed: () => _recognizeProduct(lp),
-        ),
+        if (_productCameraEnabled)
+          IconButton(
+            icon: const Icon(Icons.camera_alt_outlined),
+            tooltip: lp.tr('ai_camera'),
+            onPressed: () => _recognizeProduct(lp),
+          ),
         IconButton(
           icon: const Icon(Icons.restaurant_menu_rounded),
           tooltip: lp.tr('menu_manage'),
@@ -556,6 +567,7 @@ class _CashierScreenState extends State<CashierScreen> {
           onPressed: () async {
             await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
             _loadPrintSetting();
+            _loadProductCameraSetting();
             _loadDefaultPrice();
             _connectScale();
           },

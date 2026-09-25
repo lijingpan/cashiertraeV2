@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 import '../services/db_service.dart';
 import '../l10n/locale_provider.dart';
@@ -17,11 +18,21 @@ class _MenuScreenState extends State<MenuScreen> {
   final _db = DbService();
   List<MenuItem> _items = [];
   Map<int, int> _sampleCounts = {};
+  bool _productCameraEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadProductCameraSetting();
+  }
+
+  Future<void> _loadProductCameraSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() => _productCameraEnabled =
+          prefs.getBool('product_camera_enabled') ?? false);
+    }
   }
 
   Future<void> _load() async {
@@ -353,7 +364,7 @@ class _MenuScreenState extends State<MenuScreen> {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (!item.isQuickWeigh) ...[
+                                if (_productCameraEnabled && !item.isQuickWeigh) ...[
                                   Text('${_sampleCounts[item.id] ?? 0}', style: const TextStyle(color: Color(0xFF64748B))),
                                   const SizedBox(width: 4),
                                   Tooltip(
