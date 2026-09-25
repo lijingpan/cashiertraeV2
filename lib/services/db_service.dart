@@ -16,9 +16,13 @@ class DbService {
 
   Future<Database> _open() async {
     final path = join(await getDatabasesPath(), 'cashier.db');
+    return openAt(path);
+  }
+
+  static Future<Database> openAt(String path) {
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, v) async {
         await db.execute('''
           CREATE TABLE menu_items (
@@ -30,13 +34,31 @@ class DbService {
             is_by_weight INTEGER NOT NULL DEFAULT 1
           )
         ''');
+        await _seedDefaultMenuIfEmpty(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute("ALTER TABLE menu_items ADD COLUMN name_en TEXT NOT NULL DEFAULT ''");
         }
+        if (oldVersion < 3) {
+          await _seedDefaultMenuIfEmpty(db);
+        }
       },
     );
+  }
+
+  static Future<void> _seedDefaultMenuIfEmpty(Database db) async {
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM menu_items'),
+    );
+    if (count != 0) return;
+    await db.insert('menu_items', const MenuItem(
+      nameEn: 'Weighing Item',
+      nameTh: 'สินค้าชั่งน้ำหนัก',
+      nameCn: '称重商品',
+      price: 1,
+      isByWeight: true,
+    ).toMap()..remove('id'));
   }
 
   // ── 菜单 CRUD ─────────────────────────────────────────────
